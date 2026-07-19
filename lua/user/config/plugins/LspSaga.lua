@@ -1,0 +1,4 @@
+-- Nvim.keys.normal_mode['<leader><a-u>'] = "<cmd>Lspsaga lsp_finder<cr>"
+-- Nvim.keys.normal_mode['<a-u>'] = "<cmd>Lspsaga lsp_finder<cr>"
+Nvim.keys.normal_mode['<a-u>'] = "<cmd>Lspsaga finder<cr>"
+-- Nvim.keys.normal_mode['<c-t>'] = "<cmd>Lspsaga outline<cr>"

@@ -1,0 +1,7 @@
+!.gitignore
+/.opencode/
+/.pi/
+autoload/
+plugged/
+**/.luarc.json
+gitlog.log
