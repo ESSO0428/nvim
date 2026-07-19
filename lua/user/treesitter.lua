@@ -8,6 +8,13 @@ vim.g.rainbow_delimiters = {
     [""] = "rainbow-delimiters",
     lua = "rainbow-blocks",
   },
+  -- NOTE: We intentionally lower semantic token priority in user/lsp.lua.
+  -- rainbow-delimiters defaults to a midpoint between semantic_tokens and
+  -- treesitter, which would fall below treesitter and become visually hidden.
+  -- Keep rainbow highlights above treesitter explicitly.
+  priority = {
+    [""] = vim.hl.priorities.treesitter + 10,
+  },
   highlight = {
     "RainbowDelimiterRed",
     "RainbowDelimiterYellow",
