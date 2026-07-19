@@ -74,15 +74,25 @@ return {
       end, opts.ensure_installed or {})
 
       if #missing > 0 then
-        ts.install(missing, { summary = true }):await(function()
-          for _, buf in ipairs(vim.api.nvim_list_bufs()) do
-            local name = vim.api.nvim_buf_get_name(buf)
-            local buftype = vim.bo[buf].buftype
-            if name ~= "" and (buftype == "" or buftype == "help") then
-              start_for_buffer(buf)
+        if vim.fn.executable("tree-sitter") ~= 1 then
+          vim.schedule(function()
+            vim.notify_once(
+              "nvim-treesitter (main) needs tree-sitter CLI in $PATH; skipping parser auto-install for: "
+                .. table.concat(missing, ", "),
+              vim.log.levels.WARN
+            )
+          end)
+        else
+          ts.install(missing, { summary = true }):await(function()
+            for _, buf in ipairs(vim.api.nvim_list_bufs()) do
+              local name = vim.api.nvim_buf_get_name(buf)
+              local buftype = vim.bo[buf].buftype
+              if name ~= "" and (buftype == "" or buftype == "help") then
+                start_for_buffer(buf)
+              end
             end
-          end
-        end)
+          end)
+        end
       end
 
       for _, buf in ipairs(vim.api.nvim_list_bufs()) do
