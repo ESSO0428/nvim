@@ -652,18 +652,11 @@ local plugins = {
           vim.lsp.enable(server_name)
         end
 
-        -- Replay FileType once for already-loaded real file buffers so configs
-        -- enabled after startup/session restore can attach to them as well.
-        for _, buf in ipairs(vim.api.nvim_list_bufs()) do
-          if vim.api.nvim_buf_is_loaded(buf) then
-            local name = vim.api.nvim_buf_get_name(buf)
-            local buftype = vim.bo[buf].buftype
-            local filetype = vim.bo[buf].filetype
-            if name ~= "" and (buftype == "" or buftype == "help") and filetype ~= "" then
-              vim.api.nvim_exec_autocmds("FileType", { buffer = buf, modeline = false })
-            end
-          end
-        end
+        -- NOTE: vim.lsp.enable() already replays FileType for pre-existing
+        -- buffers via its own nvim.lsp.enable augroup. Replaying the generic
+        -- FileType event here would re-run runtime ftplugins (for example
+        -- markdown.lua), which can eagerly call vim.treesitter.start() again
+        -- and surface unrelated parser errors during startup/session restore.
       end
 
       -- NOTE: Enabling servers during the first file-open event can race with
