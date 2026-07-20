@@ -53,14 +53,14 @@ NVIM v0.12.3
 
    ```bash
    cd ~/.config
-   git clone git@github.com:ESSO0428/lvim.git nvim
+   git clone git@github.com:ESSO0428/nvim.git nvim
    ```
 
    或
 
    ```bash
    cd ~/.config
-   git clone https://github.com/ESSO0428/lvim.git nvim
+   git clone https://github.com/ESSO0428/nvim.git nvim
    ```
 
 2. 先安裝相容的 Neovim binary
