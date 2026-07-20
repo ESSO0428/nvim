@@ -230,9 +230,9 @@ theme.set_highlights = function()
   hl(0, "WhichKeyBorder", { link = "FloatBorder" })
 
   -- Git
-  hl(0, "GitSignsAdd", { fg = c.gitsigns_add, bg = "NONE" })
-  hl(0, "GitSignsChange", { fg = c.gitsigns_change, bg = "NONE" })
-  hl(0, "GitSignsDelete", { fg = c.gitsigns_delete, bg = "NONE" })
+  hl(0, "GitSignsAdd", { fg = c.git_add, bg = "NONE" })
+  hl(0, "GitSignsChange", { fg = c.git_change, bg = "NONE" })
+  hl(0, "GitSignsDelete", { fg = c.git_delete, bg = "NONE" })
 
   -- LSP
   hl(0, "DiagnosticHint", { fg = c.teal, bg = "NONE" })

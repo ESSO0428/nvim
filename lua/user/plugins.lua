@@ -280,15 +280,48 @@ local plugins = {
     -- Adds git related signs to the gutter, as well as utilities for managing changes
     "lewis6991/gitsigns.nvim",
     event = "User FileOpened",
-    opts = {
-      signs = {
-        add = { text = "+" },
-        change = { text = "~" },
-        delete = { text = "_" },
-        topdelete = { text = "‾" },
-        changedelete = { text = "~" },
-      },
-    },
+    opts = function()
+      local icons = require("user.config.icons")
+
+      return {
+        signs = {
+          add = {
+            hl = "GitSignsAdd",
+            text = icons.ui.BoldLineLeft,
+            numhl = "GitSignsAddNr",
+            linehl = "GitSignsAddLn",
+          },
+          change = {
+            hl = "GitSignsChange",
+            text = icons.ui.BoldLineLeft,
+            numhl = "GitSignsChangeNr",
+            linehl = "GitSignsChangeLn",
+          },
+          delete = {
+            hl = "GitSignsDelete",
+            text = icons.ui.Triangle,
+            numhl = "GitSignsDeleteNr",
+            linehl = "GitSignsDeleteLn",
+          },
+          topdelete = {
+            hl = "GitSignsDelete",
+            text = icons.ui.Triangle,
+            numhl = "GitSignsDeleteNr",
+            linehl = "GitSignsDeleteLn",
+          },
+          changedelete = {
+            hl = "GitSignsChange",
+            text = icons.ui.BoldLineLeft,
+            numhl = "GitSignsChangeNr",
+            linehl = "GitSignsChangeLn",
+          },
+        },
+        signcolumn = true,
+        numhl = false,
+        linehl = false,
+        word_diff = false,
+      }
+    end,
   },
   {
     "HakonHarnes/img-clip.nvim",
