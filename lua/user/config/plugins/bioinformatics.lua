@@ -28,6 +28,42 @@ local my_ext_syntax_map = {
   ['txt'] = 'tsv',
   ['tab'] = 'tsv'
 }
+local function set_treesitter_highlight_enabled(bufnr, enabled)
+  bufnr = bufnr or vim.api.nvim_get_current_buf()
+
+  if not enabled then
+    pcall(vim.treesitter.stop, bufnr)
+    return
+  end
+
+  local filetype = vim.bo[bufnr].filetype
+  if filetype == "" then
+    return
+  end
+
+  local lang = vim.treesitter.language.get_lang(filetype)
+  if not lang then
+    return
+  end
+
+  local ok_ts, ts = pcall(require, "nvim-treesitter")
+  if not ok_ts or type(ts.get_installed) ~= "function" then
+    return
+  end
+
+  local installed = ts.get_installed("parsers")
+  if not vim.tbl_contains(installed, lang) then
+    return
+  end
+
+  local ok_add = pcall(vim.treesitter.language.add, lang)
+  if not ok_add then
+    return
+  end
+
+  pcall(vim.treesitter.start, bufnr, lang)
+end
+
 local function toggle_syntax()
   local current_filetype = vim.bo.filetype
   local ext = vim.fn.expand('%:e')
@@ -53,7 +89,7 @@ local function toggle_syntax()
     vim.b.current_buffer_syntax = 'on'
     vim.cmd('setlocal syntax=on')
     if is_match_filetype ~= -1 then
-      vim.cmd('TSBufDisable highlight')
+      set_treesitter_highlight_enabled(0, false)
       vim.cmd('set syntax=' .. current_filetype)
       vim.cmd('set laststatus=2')
     end
@@ -63,7 +99,7 @@ local function toggle_syntax()
     vim.cmd('setlocal syntax=off')
     vim.cmd('set laststatus=3')
     if is_match_filetype ~= -1 then
-      vim.cmd('TSBufEnable highlight')
+      set_treesitter_highlight_enabled(0, true)
     end
     print('syntax off')
   end
@@ -112,7 +148,7 @@ function ReStartNotTableFileTypeLayout(action)
   end
   if action == 'enter' and is_match_filetype == 1 and vim.b.current_buffer_syntax == "on" then
     vim.defer_fn(function()
-      vim.cmd("TSBufDisable highlight")
+      set_treesitter_highlight_enabled(0, false)
       vim.cmd("set laststatus=2")
     end, 20)
   end
