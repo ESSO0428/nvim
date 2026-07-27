@@ -620,14 +620,11 @@ local plugins = {
       --  - capabilities (table): Override fields in capabilities. Can be used to disable certain LSP features.
       --  - settings (table): Override the default settings passed when initializing the server.
       --        For example, to see the options for `lua_ls`, you could go to: https://luals.github.io/wiki/settings/
-      local server_names = vim.deepcopy(Nvim.builtin.lsp.server_names or Nvim.builtin.lsp.ensure_installed or {})
+      local auto_lsp = require("user.lsp.auto")
 
-      -- Ensure the servers and tools above are installed
-      --  To check the current status of installed tools and/or manually install
-      --  other tools, you can run
-      --    :Mason
-      --
-      --  You can press `g?` for help in this menu.
+      -- Ensure the frequently used servers above are installed eagerly.
+      -- The rest of the LunarVim-derived ft -> server map is enabled and
+      -- installed on demand by `user.lsp.auto`.
       require("mason").setup {
         ui = {
           check_outdated_packages_on_open = true,
@@ -653,9 +650,7 @@ local plugins = {
           package_uninstalled = "◍",
         },
       }
-      -- You can add other tools here that you want Mason to install
-      -- for you, so that they are available from within Neovim.
-      local ensure_installed = vim.deepcopy(Nvim.builtin.lsp.ensure_installed or server_names)
+      local ensure_installed = vim.deepcopy(Nvim.builtin.lsp.ensure_installed or {})
       vim.list_extend(ensure_installed, {
         -- "stylua", -- Used to format Lua code
       })
@@ -666,36 +661,21 @@ local plugins = {
         automatic_enable = false,
       }
 
-      local configured_servers = {}
-      for _, server_name in ipairs(server_names) do
-        local server = vim.deepcopy((Nvim.builtin.lsp.servers or {})[server_name] or {})
-        server.capabilities = vim.tbl_deep_extend("force", {}, capabilities, server.capabilities or {})
-        vim.lsp.config(server_name, server)
-        table.insert(configured_servers, server_name)
-      end
+      auto_lsp.setup()
 
-      local enabled = false
-      local function enable_configured_servers()
-        if enabled then
+      local bootstrapped = false
+      local function bootstrap_auto_lsp()
+        if bootstrapped then
           return
         end
-        enabled = true
-
-        for _, server_name in ipairs(configured_servers) do
-          vim.lsp.enable(server_name)
-        end
-
-        -- NOTE: vim.lsp.enable() already replays FileType for pre-existing
-        -- buffers via its own nvim.lsp.enable augroup. Replaying the generic
-        -- FileType event here would re-run runtime ftplugins (for example
-        -- markdown.lua), which can eagerly call vim.treesitter.start() again
-        -- and surface unrelated parser errors during startup/session restore.
+        bootstrapped = true
+        auto_lsp.bootstrap_existing_buffers()
       end
 
-      -- NOTE: Enabling servers during the first file-open event can race with
-      -- session restore / FileType on 0.12.x. Configure first, then defer
-      -- vim.lsp.enable() until the current event cycle is finished; if a
-      -- session is still being sourced, wait until SessionLoadPost.
+      -- NOTE: Running the initial buffer bootstrap during session restore can
+      -- race with FileType on 0.12.x. Wait until SessionLoadPost when needed,
+      -- otherwise schedule immediately and let the FileType autocmd handle the
+      -- rest.
       local ok_session_utils, session_utils = pcall(require, "session_manager.utils")
       if ok_session_utils and session_utils.session_loading then
         vim.api.nvim_create_autocmd("User", {
@@ -703,11 +683,11 @@ local plugins = {
           pattern = "SessionLoadPost",
           once = true,
           callback = function()
-            vim.schedule(enable_configured_servers)
+            vim.schedule(bootstrap_auto_lsp)
           end,
         })
       else
-        vim.schedule(enable_configured_servers)
+        vim.schedule(bootstrap_auto_lsp)
       end
     end,
   },

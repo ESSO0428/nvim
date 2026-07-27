@@ -1,5 +1,14 @@
 local M = {}
 
+function M.get_json_schemas()
+  local ok, schemastore = pcall(require, "schemastore")
+  if ok and schemastore.json and type(schemastore.json.schemas) == "function" then
+    return schemastore.json.schemas()
+  end
+
+  return {}
+end
+
 function M.get_yaml_schemas()
   local ok, schemastore = pcall(require, "schemastore")
   if ok and schemastore.yaml and type(schemastore.yaml.schemas) == "function" then

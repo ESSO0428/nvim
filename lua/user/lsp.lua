@@ -12,10 +12,15 @@ Nvim.builtin.lsp.ensure_installed = {
   "tailwindcss",
   "intelephense",
   "marksman",
+  "bashls",
+  "jsonls",
 }
 
 Nvim.builtin.lsp.server_names = vim.deepcopy(Nvim.builtin.lsp.ensure_installed)
 Nvim.builtin.lsp.servers = {}
+Nvim.builtin.lsp.automatic_installation = {
+  exclude = {},
+}
 
 vim.hl.priorities.semantic_tokens = 90
 
@@ -79,72 +84,8 @@ capabilities.textDocument.foldingRange = {
 capabilities.workspace.didChangeWatchedFiles.dynamicRegistration = true
 Nvim.builtin.lsp.capabilities = capabilities
 
-local helpers = require("user.lsp.helpers")
-
-Nvim.builtin.lsp.servers.html = {
-  filetypes = { "html", "htmldjango" },
-}
-
-Nvim.builtin.lsp.servers.cssls = {
-  filetypes = { "css", "scss", "less" },
-  settings = {
-    css = {
-      validate = true,
-      lint = { unknownAtRules = "ignore" },
-    },
-    scss = {
-      validate = true,
-      lint = { unknownAtRules = "ignore" },
-    },
-    less = {
-      validate = true,
-      lint = { unknownAtRules = "ignore" },
-    },
-  },
-}
-
-Nvim.builtin.lsp.servers.ts_ls = {
-  filetypes = { "typescript", "javascript", "typescriptreact", "javascriptreact" },
-  settings = {
-    typescript = {
-      inlayHints = helpers.get_inlay_hint_settings(),
-    },
-    javascript = {
-      inlayHints = helpers.get_inlay_hint_settings(),
-    },
-  },
-  handlers = {
-    ["textDocument/definition"] = helpers.filtered_typescript_definition,
-  },
-}
-
-Nvim.builtin.lsp.servers.yamlls = {
-  filetypes = { "yaml", "yaml.docker-compose", "yaml.gitlab" },
-  settings = {
-    yaml = {
-      hover = true,
-      completion = true,
-      validate = true,
-      schemaStore = {
-        enable = true,
-        url = "https://www.schemastore.org/api/json/catalog.json",
-      },
-      schemas = helpers.get_yaml_schemas(),
-    },
-  },
-}
-
-Nvim.builtin.lsp.servers.tailwindcss = {
-  filetypes = {
-    "html",
-    "htmldjango",
-    "css",
-    "scss",
-    "less",
-    "javascript",
-    "javascriptreact",
-    "typescript",
-    "typescriptreact",
-    "php",
-  },
-}
+Nvim.builtin.lsp.get_server_config = function(server_name)
+  local server = vim.deepcopy((Nvim.builtin.lsp.servers or {})[server_name] or {})
+  server.capabilities = vim.tbl_deep_extend("force", {}, Nvim.builtin.lsp.capabilities or {}, server.capabilities or {})
+  return server
+end
