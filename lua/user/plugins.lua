@@ -150,7 +150,7 @@ local plugins = {
     "ThePrimeagen/harpoon",
     event = "User FileOpened",
     config = function()
-      require("harpoon").setup()
+      require("user.config.plugins.harpoon").setup()
     end,
     dependencies = { "nvim-lua/plenary.nvim" }
   },

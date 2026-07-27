@@ -13,6 +13,8 @@
   - 目前觀察到的內容以 `picker_*.history` 為主，屬於 Snacks picker / scratch 相關歷史資料，不是 plugin 安裝內容。
 - [x] `nvim_bookmarks`
   - `~/.local/share/lvim/nvim_bookmarks` -> `~/.local/share/nvim/nvim_bookmarks`
+- [x] `harpoon.json`
+  - `~/.local/share/lvim/harpoon.json` -> `~/.local/share/nvim/harpoon.json`
 - [x] `shada`
   - `~/.local/state/lvim/shada/main.shada` -> `~/.local/state/nvim/shada/main.shada`
 - [x] `undo`
@@ -34,9 +36,10 @@
   - `scratch_dir`
   - `snacks_dir`
   - `bookmarks_dir`
+  - `harpoon_file`
   - `shada_dir` / `shadafile`
   - `undodir`
-- [x] `session-manager`、`bookmarks.nvim`、`Snacks scratch root`、Neovim 原生 `shadafile` / `undodir` 都應改吃這組集中路徑。
+- [x] `session-manager`、`bookmarks.nvim`、`harpoon`、`Snacks scratch root`、Neovim 原生 `shadafile` / `undodir` 都應改吃這組集中路徑。
 
 ### Makefile 行為
 
@@ -45,6 +48,7 @@
   - `migrate-scratch`
   - `migrate-snacks`
   - `migrate-bookmarks`
+  - `migrate-harpoon`
   - `migrate-shada`
   - `migrate-undo`
   - `migrate-all`

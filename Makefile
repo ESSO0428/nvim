@@ -6,7 +6,7 @@ NVIM_DATA := $(HOME)/.local/share/nvim
 NVIM_STATE := $(HOME)/.local/state/nvim
 
 .PHONY: migrate-help migrate-list \
-	migrate-sessions migrate-scratch migrate-snacks migrate-bookmarks migrate-shada migrate-undo \
+	migrate-sessions migrate-scratch migrate-snacks migrate-bookmarks migrate-harpoon migrate-shada migrate-undo \
 	migrate-all
 
 define copy_dir
@@ -36,6 +36,7 @@ migrate-help:
 	  '  make migrate-scratch    # $(LVIM_DATA)/scratch -> $(NVIM_DATA)/scratch' \
 	  '  make migrate-snacks     # $(LVIM_DATA)/snacks -> $(NVIM_DATA)/snacks' \
 	  '  make migrate-bookmarks  # $(LVIM_DATA)/nvim_bookmarks -> $(NVIM_DATA)/nvim_bookmarks' \
+	  '  make migrate-harpoon    # $(LVIM_DATA)/harpoon.json -> $(NVIM_DATA)/harpoon.json' \
 	  '  make migrate-shada      # $(LVIM_STATE)/shada/main.shada -> $(NVIM_STATE)/shada/main.shada' \
 	  '  make migrate-undo       # $(LVIM_STATE)/undo -> $(NVIM_STATE)/undo' \
 	  '  make migrate-all        # run all of the above' \
@@ -59,10 +60,13 @@ migrate-snacks:
 migrate-bookmarks:
 	$(call copy_dir,$(LVIM_DATA)/nvim_bookmarks,$(NVIM_DATA)/nvim_bookmarks)
 
+migrate-harpoon:
+	$(call copy_file,$(LVIM_DATA)/harpoon.json,$(NVIM_DATA)/harpoon.json)
+
 migrate-shada:
 	$(call copy_file,$(LVIM_STATE)/shada/main.shada,$(NVIM_STATE)/shada/main.shada)
 
 migrate-undo:
 	$(call copy_dir,$(LVIM_STATE)/undo,$(NVIM_STATE)/undo)
 
-migrate-all: migrate-sessions migrate-scratch migrate-snacks migrate-bookmarks migrate-shada migrate-undo
+migrate-all: migrate-sessions migrate-scratch migrate-snacks migrate-bookmarks migrate-harpoon migrate-shada migrate-undo
