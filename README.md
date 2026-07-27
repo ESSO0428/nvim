@@ -75,6 +75,17 @@ If you use a much older Neovim version, some features may not work correctly.
    - normal desktop/server with sufficiently new `glibc`: `bob`
    - older server with old `glibc`: compile Neovim locally instead of relying on prebuilt binaries
 
+   If you use `bob`, a common flow is:
+
+   ```bash
+   bob install v0.12.3
+   bob use v0.12.3
+   bob list
+   nvim --version
+   ```
+
+   `bob use v0.12.3` can auto-install by default, but I still prefer running `install` explicitly first.
+
 3. Start Neovim once
 
    ```bash
@@ -149,6 +160,35 @@ Recommended `bob` install paths:
 
   ```bash
   cargo install bob-nvim --locked
+  ```
+
+After `bob` is available in your `PATH`, install and switch to the target version with:
+
+```bash
+bob install v0.12.3
+bob use v0.12.3
+bob list
+nvim --version
+```
+
+Useful commands:
+
+- switch to another installed version
+
+  ```bash
+  bob use v0.12.2
+  ```
+
+- install and switch in one step (default `bob use` behavior)
+
+  ```bash
+  bob use v0.12.3
+  ```
+
+- switch only if already installed
+
+  ```bash
+  bob use --no-install v0.12.3
   ```
 
 Important caveats learned during setup:

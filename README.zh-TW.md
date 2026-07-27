@@ -75,6 +75,17 @@ NVIM v0.12.3
    - 一般桌機／server，且 `glibc` 夠新：用 `bob`
    - 舊 server、`glibc` 太舊：直接在本機編譯 Neovim，不要依賴預編譯 binary
 
+   如果你用 `bob`，常見流程是：
+
+   ```bash
+   bob install v0.12.3
+   bob use v0.12.3
+   bob list
+   nvim --version
+   ```
+
+   `bob use v0.12.3` 預設也會自動安裝，但我仍建議先明確跑一次 `install`。
+
 3. 啟動一次 Neovim
 
    ```bash
@@ -149,6 +160,35 @@ make migrate-all
 
   ```bash
   cargo install bob-nvim --locked
+  ```
+
+確認 `bob` 已在 `PATH` 後，可用以下命令安裝並切換到目標版本：
+
+```bash
+bob install v0.12.3
+bob use v0.12.3
+bob list
+nvim --version
+```
+
+常用命令：
+
+- 切到另一個已安裝版本
+
+  ```bash
+  bob use v0.12.2
+  ```
+
+- 安裝並切換（`bob use` 的預設行為）
+
+  ```bash
+  bob use v0.12.3
+  ```
+
+- 只切換，不自動安裝
+
+  ```bash
+  bob use --no-install v0.12.3
   ```
 
 這次踩到的重要注意事項：
