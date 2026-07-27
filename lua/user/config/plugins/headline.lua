@@ -56,10 +56,10 @@ function M.setup()
         (fenced_code_block) @codeblock
       ]]
       ),
-      -- headline_highlights = {
-      --   "Headline1",
-      --   "Headline2"
-      -- },
+      -- Keep markdown headline rendering delegated to render-markdown.
+      -- Enabling headline_highlights here stacks another overlay on top of the
+      -- existing heading icons/background handling and causes duplicated
+      -- markers such as ◉◉.
       headline_highlights = false,
       bullet_highlights = {
         "@text.title.1.marker.markdown",

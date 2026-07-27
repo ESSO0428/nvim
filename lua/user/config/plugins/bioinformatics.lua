@@ -29,39 +29,15 @@ local my_ext_syntax_map = {
   ['tab'] = 'tsv'
 }
 local function set_treesitter_highlight_enabled(bufnr, enabled)
-  bufnr = bufnr or vim.api.nvim_get_current_buf()
-
-  if not enabled then
-    pcall(vim.treesitter.stop, bufnr)
-    return
-  end
-
-  local filetype = vim.bo[bufnr].filetype
-  if filetype == "" then
-    return
-  end
-
-  local lang = vim.treesitter.language.get_lang(filetype)
-  if not lang then
-    return
-  end
-
-  local ok_ts, ts = pcall(require, "nvim-treesitter")
-  if not ok_ts or type(ts.get_installed) ~= "function" then
-    return
-  end
-
-  local installed = ts.get_installed("parsers")
-  if not vim.tbl_contains(installed, lang) then
-    return
-  end
-
-  local ok_add = pcall(vim.treesitter.language.add, lang)
-  if not ok_add then
-    return
-  end
-
-  pcall(vim.treesitter.start, bufnr, lang)
+  require("user.treesitter").set_highlight_enabled(bufnr, enabled, {
+    auto_install = false,
+    highlight = {
+      additional_vim_regex_highlighting = {},
+    },
+    indent = {
+      enable = false,
+    },
+  })
 end
 
 local function toggle_syntax()

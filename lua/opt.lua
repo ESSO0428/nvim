@@ -193,7 +193,7 @@ vim.opt.rtp:prepend(lazypath)
 vim.wo.foldlevel = 99
 vim.wo.foldenable = true
 vim.wo.foldmethod = "expr"
-vim.wo.foldexpr = "nvim_treesitter#foldexpr()"
+vim.wo.foldexpr = "v:lua.vim.treesitter.foldexpr()"
 -- vim.g.conda_auto_activate_base = 0 -- 关闭 base 环境的自动激活
 -- vim.g.conda_auto_env = 1 -- 开启自动激活环境
 -- vim.g.conda_env = 'base' -- 设置自动激活的 conda 环境

@@ -185,7 +185,7 @@ local function list_and_select_windows_in_tab()
 
             pcall(function()
               vim.api.nvim_command("setlocal foldmethod=expr")
-              vim.api.nvim_command("setlocal foldexpr=nvim_treesitter#foldexpr()")
+              vim.api.nvim_command("setlocal foldexpr=v:lua.vim.treesitter.foldexpr()")
               vim.schedule(function()
                 jump_to_line(self, self.state.bufnr, entry.lnum)
               end)
