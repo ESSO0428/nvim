@@ -1,6 +1,7 @@
 local helpers = require("user.lsp.helpers")
 
 return {
+  capabilities = Nvim.builtin.lsp.get_capabilities(),
   settings = {
     redhat = {
       telemetry = { enabled = false },

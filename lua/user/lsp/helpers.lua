@@ -22,6 +22,10 @@ function M.get_root(bufnr, markers)
   return vim.fs.root(bufnr, markers)
 end
 
+function M.find_git_ancestor_or_root(bufnr, markers)
+  return M.get_root(bufnr, { ".git" }) or M.get_root(bufnr, markers)
+end
+
 function M.python_root_dir(bufnr, on_dir)
   local fname = vim.api.nvim_buf_get_name(bufnr)
   local markers = {
@@ -65,7 +69,7 @@ function M.python_root_dir(bufnr, on_dir)
 end
 
 function M.php_root_dir(bufnr, on_dir)
-  on_dir(M.get_root(bufnr, { "composer.json", ".git", "index.php", "requirements.txt" }))
+  on_dir(M.find_git_ancestor_or_root(bufnr, { "composer.json", "index.php", "requirements.txt" }))
 end
 
 function M.filtered_typescript_definition(_, result, ctx)

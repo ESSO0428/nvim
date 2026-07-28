@@ -1,4 +1,5 @@
 return {
+  capabilities = Nvim.builtin.lsp.get_capabilities(),
   settings = {
     Lua = {
       telemetry = { enable = false },

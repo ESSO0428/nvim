@@ -1,3 +1,3 @@
 return {
-  filetypes = { "markdown" },
+  capabilities = Nvim.builtin.lsp.get_capabilities(),
 }

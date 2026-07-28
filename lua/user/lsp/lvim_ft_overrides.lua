@@ -5,6 +5,7 @@ return {
   htmldjango = { "tailwindcss", "html" },
   javascript = { "tailwindcss", "ts_ls" },
   javascriptreact = { "tailwindcss", "ts_ls" },
+  markdown = { "marksman" },
   php = { "tailwindcss", "intelephense" },
   python = { "basedpyright", "ruff" },
   typescript = { "tailwindcss", "ts_ls" },

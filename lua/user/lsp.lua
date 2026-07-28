@@ -83,6 +83,9 @@ capabilities.textDocument.foldingRange = {
 }
 capabilities.workspace.didChangeWatchedFiles.dynamicRegistration = true
 Nvim.builtin.lsp.capabilities = capabilities
+Nvim.builtin.lsp.get_capabilities = function()
+  return vim.deepcopy(Nvim.builtin.lsp.capabilities or capabilities)
+end
 
 Nvim.builtin.lsp.get_server_config = function(server_name)
   local server = vim.deepcopy((Nvim.builtin.lsp.servers or {})[server_name] or {})
