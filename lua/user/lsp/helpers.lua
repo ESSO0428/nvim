@@ -22,57 +22,8 @@ function M.get_root(bufnr, markers)
   return vim.fs.root(bufnr, markers)
 end
 
-function M.buffer_dir(bufnr)
-  local fname = vim.api.nvim_buf_get_name(bufnr)
-  if fname == nil or fname == "" then
-    return vim.uv.cwd()
-  end
-
-  return vim.fs.dirname(fname)
-end
-
 function M.find_git_ancestor_or_root(bufnr, markers)
   return M.get_root(bufnr, { ".git" }) or M.get_root(bufnr, markers)
-end
-
-function M.project_root_markers()
-  return {
-    ".git",
-    "_darcs",
-    ".hg",
-    ".bzr",
-    ".svn",
-    "Makefile",
-    "package.json",
-    "package-lock.json",
-    "pnpm-lock.yaml",
-    "yarn.lock",
-    "pyproject.toml",
-    "setup.py",
-    "setup.cfg",
-    "requirements.txt",
-    "Pipfile",
-    "Cargo.toml",
-    "go.mod",
-    "composer.json",
-    "pom.xml",
-    "mix.exs",
-    "mkdocs.yml",
-    "mkdocs.yaml",
-  }
-end
-
-function M.project_root_or_buffer_dir(bufnr, extra_markers)
-  local markers = M.project_root_markers()
-  if extra_markers and #extra_markers > 0 then
-    vim.list_extend(markers, extra_markers)
-  end
-
-  return M.get_root(bufnr, markers) or M.buffer_dir(bufnr)
-end
-
-function M.marksman_root_dir(bufnr, on_dir)
-  on_dir(M.project_root_or_buffer_dir(bufnr))
 end
 
 function M.python_root_dir(bufnr, on_dir)
