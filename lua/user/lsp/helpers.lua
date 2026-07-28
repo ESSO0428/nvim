@@ -22,8 +22,21 @@ function M.get_root(bufnr, markers)
   return vim.fs.root(bufnr, markers)
 end
 
+function M.buffer_dir(bufnr)
+  local fname = vim.api.nvim_buf_get_name(bufnr)
+  if fname == nil or fname == "" then
+    return vim.uv.cwd()
+  end
+
+  return vim.fs.dirname(fname)
+end
+
 function M.find_git_ancestor_or_root(bufnr, markers)
   return M.get_root(bufnr, { ".git" }) or M.get_root(bufnr, markers)
+end
+
+function M.marksman_root_dir(bufnr, on_dir)
+  on_dir(M.get_root(bufnr, { ".git" }) or M.buffer_dir(bufnr))
 end
 
 function M.python_root_dir(bufnr, on_dir)
