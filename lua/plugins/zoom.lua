@@ -49,6 +49,36 @@ return {
       }
     end
   },
+  {
+    "tkancf/narrowing-nvim",
+    cmd = { "Narrowing" },
+    config = function()
+      require("narrowing").setup({
+        -- Window settings
+        window = {
+          type = "split",
+          position = "bottom",
+          vertical = false,
+          height = 0.5,
+        },
+
+        -- Keymaps (disabled by default)
+        keymaps = {
+          enabled = false,       -- Set to true to enable default keymaps
+          narrow = "<leader>Nr", -- Visual mode: narrow selection
+          fold = "<leader>Nf",   -- Normal mode: narrow fold at cursor
+          write = "<leader>Nw",  -- Normal mode: write changes (in narrowed buffer)
+          quit = "<leader>Nq",   -- Normal mode: quit (in narrowed buffer)
+        },
+
+        -- Behavior
+        sync_on_write = true,       -- Auto-sync on :w
+        protect_original = true,    -- Make original read-only
+        highlight_region = true,    -- Highlight narrowed region
+        highlight_group = "Visual", -- Highlight style
+      })
+    end,
+  },
   -- {
   -- "folke/twilight.nvim",
   -- config = function()
