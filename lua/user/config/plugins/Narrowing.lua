@@ -72,9 +72,5 @@ function narrow_except_selection(visual_mode)
 end
 
 -- Bind the function to the shortcut key <leader>On in visual mode
--- Nvim.keys.visual_mode['<leader>On'] = ':<C-u>lua narrow_except_selection(true)<CR>'
--- Nvim.keys.normal_mode['<leader>On'] = { '<cmd>lua narrow_except_selection()<CR>', desc = 'Zoom-in Folding to split' }
-
--- instead by `tkancf/narrowing-nvim`
-Nvim.keys.visual_mode['<leader>On'] = ':<C-u>Narrowing<CR>'
-Nvim.keys.normal_mode['<leader>On'] = { '<cmd>Narrowing fold<CR>', desc = 'Zoom-in Folding to split' }
+Nvim.keys.visual_mode['<leader>On'] = ':<C-u>lua narrow_except_selection(true)<CR>'
+Nvim.keys.normal_mode['<leader>On'] = { '<cmd>lua narrow_except_selection()<CR>', desc = 'Zoom-in Folding to split' }
