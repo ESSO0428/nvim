@@ -1,6 +1,3 @@
--- setup lunar colorscheme
-require("user.core.lunar").setup()
-
 -- Match the old LunarVim Limelight dim color and provide a cterm fallback.
 vim.g.limelight_conceal_guifg = "#545763"
 vim.g.limelight_conceal_ctermfg = 59

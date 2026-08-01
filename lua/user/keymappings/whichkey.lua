@@ -165,8 +165,8 @@ Nvim.which_key = {
 
   { "<leader>UF", find_lazy_pack_files, desc = "Find Lazy pack files" },
   { "<leader>UG", grep_lazy_pack_files, desc = "Grep Lazy pack files" },
-  { "<leader>Uf", find_config_files, desc = "Find LunarVim files" },
-  { "<leader>Ug", grep_config_files, desc = "Grep LunarVim files" },
+  { "<leader>Uf", find_config_files, desc = "Find Neovim files" },
+  { "<leader>Ug", grep_config_files, desc = "Grep Neovim files" },
 
   { "<leader>bj", "<cmd>BufferLinePick<cr>", desc = "Jump" },
   { "<leader>bf", "<cmd>Telescope buffers previewer=false<cr>", desc = "Find" },
@@ -200,7 +200,7 @@ Nvim.which_key = {
   { "<leader>uA", "<cmd>lua require('inlayhint-filler').fill()<cr>", desc = "Inlayhint Filler" },
   { "<leader>uh", function() vim.lsp.inlay_hint.enable(not vim.lsp.inlay_hint.is_enabled()) end,
     desc = "Toggle Inlay Hints" },
-  { "<leader>ut", "<cmd>TSContextToggle<cr>", desc = "Toggle Treesitter Context" },
+  { "<leader>ut", "<cmd>TSContext toggle<cr>", desc = "Toggle Treesitter Context" },
   { "<leader>uo", "<cmd>Neogen<cr>", desc = "Document Generate" },
   { "<leader>uka", function() require("user.copilot").quickchat(true) end, desc = "CopilotChat Quick Chat" },
   { "<leader>uka", function() require("user.copilot").quickchat_visual(true) end, mode = "v",

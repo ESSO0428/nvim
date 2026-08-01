@@ -10,7 +10,7 @@ vim.cmd "highlight Dash guifg=#D19A66 gui=bold"
 
 -- orgmode link
 vim.cmd "highlight @org.hyperlink guifg=#3794FF gui=underline"
-vim.cmd "highlight link @markup.list.markdown Identifier"
+vim.cmd "highlight! link @markup.list.markdown Identifier"
 vim.cmd "highlight! link markdownOrderedListMarker Identifier"
 vim.cmd "highlight @markup.link.label.markdown_inline guifg=#3794FF gui=underline"
 vim.cmd "highlight markdownLinkText guifg=#3794FF gui=underline"
