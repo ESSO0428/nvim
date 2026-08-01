@@ -71,10 +71,18 @@ return {
       local bufferline_options = vim.deepcopy(builtin_bufferline.options or {})
 
       local ok_groups, groups = pcall(require, "bufferline.groups")
-      if ok_groups and bufferline_options.groups and vim.tbl_islist(bufferline_options.groups.items) then
-        local has_ungrouped = vim.tbl_contains(bufferline_options.groups.items, groups.builtin.ungrouped)
+      if ok_groups and bufferline_options.groups and vim.islist(bufferline_options.groups.items) then
+        local ungrouped = groups.builtin.ungrouped:with({
+          name = "ungrouped",
+          separator = {
+            style = groups.separator.pill,
+          },
+        })
+        local has_ungrouped = vim.iter(bufferline_options.groups.items):any(function(item)
+          return item.name == "ungrouped"
+        end)
         if not has_ungrouped then
-          table.insert(bufferline_options.groups.items, groups.builtin.ungrouped)
+          table.insert(bufferline_options.groups.items, ungrouped)
         end
       end
 

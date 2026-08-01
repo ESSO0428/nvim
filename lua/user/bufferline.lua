@@ -10,21 +10,64 @@ if not ok_filetypes then
   devicon_filetypes = require("user.core.filetypes")
 end
 
+local core_matchers = {
+  readme = function(buf)
+    local name = buf.id and vim.fn.bufname(buf.id) or ""
+    name = name:lower()
+    return name:match("readme") ~= nil
+  end,
+}
+local util_matchers = {
+  readme = function(buf)
+    return core_matchers.readme(buf)
+  end,
+  docs = function(buf)
+    if core_matchers.readme(buf) then
+      return false
+    end
+    return (buf.id and vim.fn.bufname(buf.id):match("%.md"))
+        or (buf.id and vim.fn.bufname(buf.id):match("%.txt"))
+  end,
+}
+local ft_catch = function(buf)
+  local ft = vim.bo[buf.id].filetype
+  if ft == "" then
+    ft = vim.filetype.match({
+      filename = vim.api.nvim_buf_get_name(buf.id),
+    })
+  end
+  return ft
+end
+
 local special_items = {
+  {
+    name = "Dotfiles",
+    matcher = function(buf)
+      return buf.name and buf.name:sub(1, 1) == "."
+    end,
+  },
   {
     name = "OrgMode",
     auto_close = false,
     matcher = function(buf)
-      return buf.id and vim.bo[buf.id].filetype == "org"
+      return buf.id and ft_catch(buf) == "org"
     end,
   },
   {
     name = "README",
     auto_close = false,
+    matcher = util_matchers.readme,
+  },
+  {
+    name = "Docs",
+    auto_close = false,
+    matcher = util_matchers.docs,
+  },
+  {
+    name = "Shell",
+    auto_close = false,
     matcher = function(buf)
-      local name = buf.id and vim.fn.bufname(buf.id) or ""
-      name = name:lower()
-      return name:match("readme") ~= nil
+      return buf.id and vim.fn.bufname(buf.id):match("%.sh")
     end,
   },
   {
@@ -37,32 +80,11 @@ local special_items = {
     end,
   },
   {
-    name = "Dotfiles",
-    matcher = function(buf)
-      return buf.name and buf.name:sub(1, 1) == "."
-    end,
-  },
-  {
-    name = "Shell",
-    auto_close = false,
-    matcher = function(buf)
-      return buf.id and vim.fn.bufname(buf.id):match("%.sh")
-    end,
-  },
-  {
     name = "Table",
     auto_close = false,
     matcher = function(buf)
       return (buf.id and vim.fn.bufname(buf.id):match("%.csv"))
           or (buf.id and vim.fn.bufname(buf.id):match("%.tsv"))
-    end,
-  },
-  {
-    name = "Docs",
-    auto_close = false,
-    matcher = function(buf)
-      return (buf.id and vim.fn.bufname(buf.id):match("%.md"))
-          or (buf.id and vim.fn.bufname(buf.id):match("%.txt"))
     end,
   },
   {
@@ -72,7 +94,7 @@ local special_items = {
       if not buf.id then
         return false
       end
-      local ft = vim.bo[buf.id].filetype
+      local ft = ft_catch(buf)
       return ft == "lua" or ft == "vim"
     end,
   },
@@ -82,6 +104,24 @@ local excluded_fts = {
   org = true,
   lua = true,
   vim = true,
+}
+local exclude_matchers = {
+  dotfiles = function(buf)
+    return buf.name and buf.name:sub(1, 1) == "."
+  end,
+  readme = util_matchers.readme,
+  docs = util_matchers.docs,
+  tests = function(buf)
+    local name = buf.id and vim.fn.bufname(buf.id) or ""
+    return name:match("_test") ~= nil or name:match("_spec") ~= nil
+  end,
+  shell = function(buf)
+    return buf.id and vim.fn.bufname(buf.id):match("%.sh")
+  end,
+  Table = function(buf)
+    return (buf.id and vim.fn.bufname(buf.id):match("%.csv"))
+        or (buf.id and vim.fn.bufname(buf.id):match("%.tsv"))
+  end,
 }
 
 local auto_ft_names = {}
@@ -99,7 +139,12 @@ for _, ft in ipairs(auto_ft_names) do
     name = ft,
     auto_close = false,
     matcher = function(buf)
-      return buf.id and vim.bo[buf.id].filetype == ft
+      for _, exclude in pairs(exclude_matchers) do
+        if exclude(buf) then
+          return false
+        end
+      end
+      return buf.id and ft_catch(buf) == ft
     end,
   })
 end
