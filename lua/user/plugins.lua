@@ -1161,3 +1161,4 @@ local settings = {
 }
 
 require("lazy").setup(plugins, settings)
+require("user.core.lunar").setup()
