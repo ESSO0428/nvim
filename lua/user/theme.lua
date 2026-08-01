@@ -54,6 +54,7 @@ vim.cmd "hi BlinkCmpMenu guibg=none"
 vim.cmd "hi BlinkCmpLabel guibg=none"
 
 -- Utils
+vim.cmd "hi Visual guibg=#2d59a1"
 vim.cmd "hi Keyword cterm=italic gui=italic guifg=#c586c0"
 vim.cmd "hi @Keyword cterm=italic gui=italic guifg=#c586c0"
 vim.cmd "hi @keyword.vim guifg=#9d7cd8"
