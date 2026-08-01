@@ -1,7 +1,16 @@
 return {
   {
     "zbirenbaum/copilot.lua",
-    event = "InsertEnter",
+    event = { "LspAttach", "InsertEnter", "TextChangedI" },
+    cmd = "Copilot",
+    dependencies = {
+      {
+        "copilotlsp-nvim/copilot-lsp",
+        init = function()
+          vim.g.copilot_nes_debounce = 150
+        end,
+      },
+    },
     config = function()
       require("user.config.plugins.Copilot")
     end,

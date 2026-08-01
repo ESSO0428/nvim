@@ -887,8 +887,24 @@ local plugins = {
         return items
       end
 
+      local function apply_copilot_nes_and_goto(cmp)
+        local bufnr = vim.api.nvim_get_current_buf()
+        if not vim.b[bufnr].nes_state then
+          return
+        end
+
+        local ok, nes = pcall(require, "copilot-lsp.nes")
+        if not ok then
+          return
+        end
+
+        cmp.hide()
+        return nes.apply_pending_nes() and nes.walk_cursor_end_edit()
+      end
+
       local keymap = {
         preset = "none",
+        ["<Tab>"] = { apply_copilot_nes_and_goto, "snippet_forward", "fallback" },
         ["<M-i>"] = { "select_prev", "show" },
         ["<M-k>"] = { "select_next", "show" },
         ["<M-j>"] = {
