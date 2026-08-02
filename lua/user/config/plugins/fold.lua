@@ -18,7 +18,6 @@ function M.setup()
   -- NOTE: foldingRange capability is injected in the main LSP setup.
   local ftMap = {
     vim = 'indent',
-    markdown = { 'treesitter', 'indent' },
     -- python = { 'indent', 'treesitter' },
     python = { 'indent', 'marker' },
     git = ''
@@ -28,6 +27,9 @@ function M.setup()
   }
   local empty_return_filetypes = {
     'org',
+    'markdown',
+    'copilot-chat',
+    'Avante',
   }
   ---@param providers table|string List of providers to aggregate, e.g. {'indent', 'marker'}, or a string provider name
   local function aggregate_providers(providers)
