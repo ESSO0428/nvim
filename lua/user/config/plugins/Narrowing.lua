@@ -202,7 +202,7 @@ local function delete_upstream_same_level_folds(fold_start_line)
 end
 
 -- Custom function to implement the Narrow effect outside the selected area
-local function narrow_except_selection(visual_mode)
+local function narrow_except_selection(visual_mode, zoom_mode)
   local start_line, start_col, fold_start_line, end_line
   if visual_mode then
     _, start_line, _, _ = unpack(vim.fn.getpos("'<"))
@@ -217,8 +217,12 @@ local function narrow_except_selection(visual_mode)
       return
     end
   end
-
-  vim.cmd('split')
+  if zoom_mode then
+    vim.cmd('fclose')
+    vim.cmd('NeoZoomToggle')
+  else
+    vim.cmd('split')
+  end
   require("ufo").detach()
   vim.cmd('setlocal foldtext=')
   pcall(function() vim.cmd('normal! zR') end)
@@ -264,6 +268,8 @@ end
 
 -- Bind the function to the shortcut key <leader>On in visual mode
 -- Nvim.keys.visual_mode['<leader>On'] = ':<C-u>lua narrow_except_selection(true)<CR>'
-Nvim.keys.visual_mode['<leader>On'] = { function() narrow_except_selection(true) end }
-Nvim.keys.normal_mode['<leader>On'] = { function() narrow_except_selection(false) end,
+Nvim.keys.visual_mode['<leader>On'] = { function() narrow_except_selection(true, false) end }
+Nvim.keys.normal_mode['<leader>On'] = { function() narrow_except_selection(false, false) end,
   { desc = 'Zoom-in Folding to split' } }
+Nvim.keys.normal_mode['<leader>ON'] = { function() narrow_except_selection(false, true) end,
+  { desc = 'Neo-Zoom-in Folding to split' } }
