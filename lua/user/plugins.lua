@@ -547,7 +547,7 @@ local plugins = {
           --  This is where a variable was first declared, or where a function is defined, etc.
           --  To jump back, press <C-t>.
           map("gd", require("telescope.builtin").lsp_definitions, "[G]oto [D]efinition")
-          map("<a-o>", require("telescope.builtin").lsp_definitions, "[G]oto [D]efinition")
+          -- map("<a-o>", require("telescope.builtin").lsp_definitions, "[G]oto [D]efinition")
 
           -- map("gh", vim.lsp.buf.hover(), "documentation hover")
           -- map("gm", vim.lsp.buf.signature_help(), "documentation hover")

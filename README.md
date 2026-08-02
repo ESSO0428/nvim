@@ -53,14 +53,14 @@ If you use a much older Neovim version, some features may not work correctly.
 
    ```bash
    cd ~/.config
-   git clone git@github.com:ESSO0428/nvim.git nvim
+   git clone git@github.com:ESSO0428/nvim.git
    ```
 
    or
 
    ```bash
    cd ~/.config
-   git clone https://github.com/ESSO0428/nvim.git nvim
+   git clone https://github.com/ESSO0428/nvim.git
    ```
 
 2. Install a compatible Neovim binary first

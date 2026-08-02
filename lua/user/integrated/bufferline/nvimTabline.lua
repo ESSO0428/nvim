@@ -166,7 +166,7 @@ local function to_tabline_str(component)
     table.insert(str, #str + 1, attr[1])
   end
 
-  return table.concat(vim.tbl_flatten(str))
+  return table.concat(vim.iter(str):flatten():totable())
 end
 
 local function join(list)

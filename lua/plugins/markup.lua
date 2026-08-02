@@ -16,13 +16,6 @@ return {
     end
   },
   {
-    "ESSO0428/mkdnflow.nvim",
-    ft = { "markdown" }, -- 只在 markdown 開啟
-    config = function()
-      require("user.config.plugins.mkdnflow").setup()
-    end
-  },
-  {
     "ESSO0428/md-headers.nvim",
     ft = { "markdown" }, -- 只在 markdown 開啟
     deprecated = { 'nvim-lua/plenary.nvim' }

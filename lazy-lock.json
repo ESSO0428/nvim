@@ -69,7 +69,6 @@
   "mini.hipatterns": { "branch": "main", "commit": "607d604e650cdf21d71f863d040c496a1d0cb320" },
   "mini.nvim": { "branch": "main", "commit": "c248713d3530710f67ec804cfbdfcd5b02b19dee" },
   "minty": { "branch": "main", "commit": "aafc9e8e0afe6bf57580858a2849578d8d8db9e0" },
-  "mkdnflow.nvim": { "branch": "main", "commit": "3c17dd52048550f5742ac03c531bca9ca101afc8" },
   "neo-tree.nvim": { "branch": "v3.x", "commit": "ebd66767191714e008ce73b769518a763ff31bdc" },
   "neogen": { "branch": "main", "commit": "23e7e9f883d01289ebd90e98025acc860ea26366" },
   "neotest": { "branch": "master", "commit": "ad991822b7076b1d940b33a9d6d0d30416d5df81" },

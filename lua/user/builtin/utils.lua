@@ -635,112 +635,574 @@ end
 vim.api.nvim_create_user_command("ConflictDiff", Nvim.DiffTool.open_conflict_diff, {})
 vim.api.nvim_create_user_command("ConflictAllDiff", Nvim.DiffTool.open_all_conflict_diff, {})
 
-function Nvim.MarkDownTool.open_link(mode)
-  local function is_url(text)
-    local pattern = "^(https?://.+)$"
-    return text:match(pattern) ~= nil
-  end
-  -- Treesitter check if current node is a link
-  local ts_utils = require('nvim-treesitter.ts_utils')
-  local node = ts_utils.get_node_at_cursor()
-  local function get_node_text(node)
-    local bufnr = vim.api.nvim_get_current_buf()
-    return vim.treesitter.get_node_text(node, bufnr)
+Nvim.MarkDownTool.config = vim.tbl_deep_extend("force", Nvim.MarkDownTool.config or {}, {
+  perspective = {
+    priority = "first",
+    fallback = "current",
+    root_tell = false,
+  },
+  checkbox = {
+    symbols = { " ", "x" },
+  },
+})
+Nvim.MarkDownTool.state = Nvim.MarkDownTool.state or {
+  initial_buf = nil,
+  initial_dir = nil,
+}
+
+local function markdown_mark_initial_context(bufnr)
+  local state = Nvim.MarkDownTool.state
+  if state.initial_dir and state.initial_buf then
+    return
   end
 
-  -- Check node type
-  local link_text
-  local link_url
-  if node and node:type() == "link_text" then
-    -- Get the next node
-    local next_node = node:next_named_sibling()
-    if next_node and next_node:type() == "link_destination" then
-      link_text = get_node_text(next_node)
-      if is_url(link_text) then
-        link_url = link_text
+  local bufname = vim.api.nvim_buf_get_name(bufnr)
+  if bufname == "" then
+    return
+  end
+
+  state.initial_buf = state.initial_buf or bufname
+  state.initial_dir = state.initial_dir or vim.fs.dirname(bufname)
+end
+
+local function markdown_is_url(text)
+  return type(text) == "string" and text:match("^[%a][%w+.-]*://") ~= nil
+end
+
+local function markdown_is_email(text)
+  return type(text) == "string"
+      and text:match("^[^%s@<>]+@[^%s@<>]+%.[^%s@<>]+$") ~= nil
+end
+
+local function markdown_is_file_uri(text)
+  return type(text) == "string" and text:match("^file:") ~= nil
+end
+
+local function markdown_normalize_link_target(text)
+  if type(text) ~= "string" then
+    return nil
+  end
+
+  text = vim.trim(text)
+  if text == "" then
+    return nil
+  end
+
+  text = text:gsub("^<", ""):gsub(">$", "")
+  text = text:gsub('^"', ""):gsub('"$', "")
+  text = text:gsub("^'", ""):gsub("'$", "")
+  text = vim.trim(text)
+
+  if text == "" then
+    return nil
+  end
+
+  return text
+end
+
+local function markdown_normalize_reference_label(text)
+  text = markdown_normalize_link_target(text)
+  if not text then
+    return nil
+  end
+
+  text = text:gsub("^%[", ""):gsub("%]$", "")
+  text = vim.trim(text)
+  if text == "" then
+    return nil
+  end
+  return text
+end
+
+local function markdown_child_of_type(node, wanted_type)
+  if not node then
+    return nil
+  end
+
+  for child in node:iter_children() do
+    if child:type() == wanted_type then
+      return child
+    end
+  end
+
+  return nil
+end
+
+local function markdown_resolve_reference_label(label, bufnr)
+  label = markdown_normalize_reference_label(label)
+  if not label then
+    return nil
+  end
+
+  local target_label = label:lower()
+  for _, line in ipairs(vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)) do
+    local ref_label, destination = line:match("^%s*%[([^%]]+)%]:%s*<?([^%s>]+)>?")
+    if ref_label and destination and ref_label:lower() == target_label then
+      return markdown_normalize_link_target(destination)
+    end
+  end
+
+  return nil
+end
+
+local function markdown_get_visual_selection()
+  local s_start = vim.fn.getpos("'<")
+  local s_end = vim.fn.getpos("'>")
+  local n_lines = math.abs(s_end[2] - s_start[2]) + 1
+  local lines = vim.api.nvim_buf_get_lines(0, s_start[2] - 1, s_end[2], false)
+  if #lines == 0 then
+    return ""
+  end
+
+  lines[1] = string.sub(lines[1], s_start[3], -1)
+  if n_lines == 1 then
+    lines[n_lines] = string.sub(lines[n_lines], 1, s_end[3] - s_start[3] + 1)
+  else
+    lines[n_lines] = string.sub(lines[n_lines], 1, s_end[3])
+  end
+  return table.concat(lines, '\n')
+end
+
+local function markdown_get_source_text(mode)
+  if mode == "visual" or mode == "float_visual" then
+    return markdown_get_visual_selection(), nil
+  end
+
+  return vim.api.nvim_get_current_line(), vim.api.nvim_win_get_cursor(0)[2] + 1
+end
+
+local function markdown_try_treesitter_link(bufnr)
+  local ok, node = pcall(vim.treesitter.get_node, { bufnr = bufnr, ignore_injections = false })
+  if not ok or not node then
+    return nil
+  end
+
+  local function get_text(target_node)
+    return markdown_normalize_link_target(vim.treesitter.get_node_text(target_node, bufnr))
+  end
+
+  while node do
+    local node_type = node:type()
+
+    if node_type == "link_destination" or node_type == "uri_autolink" or node_type == "email_autolink" then
+      return { target = get_text(node), source = "treesitter" }
+    elseif node_type == "inline_link" then
+      local destination = markdown_child_of_type(node, "link_destination")
+      if destination then
+        return { target = get_text(destination), source = "treesitter" }
+      end
+    elseif node_type == "full_reference_link" then
+      local label = markdown_child_of_type(node, "link_label")
+      if label then
+        return { kind = "reference", label = vim.treesitter.get_node_text(label, bufnr), source = "treesitter" }
+      end
+    elseif node_type == "collapsed_reference_link" or node_type == "shortcut_link" then
+      local label = markdown_child_of_type(node, "link_label") or markdown_child_of_type(node, "link_text")
+      if label then
+        return { kind = "reference", label = vim.treesitter.get_node_text(label, bufnr), source = "treesitter" }
+      end
+    elseif node_type == "link_text" then
+      local parent = node:parent()
+      if parent and parent:type() == "inline_link" then
+        local destination = markdown_child_of_type(parent, "link_destination")
+        if destination then
+          return { target = get_text(destination), source = "treesitter" }
+        end
+      elseif parent and (parent:type() == "collapsed_reference_link" or parent:type() == "shortcut_link") then
+        return { kind = "reference", label = vim.treesitter.get_node_text(node, bufnr), source = "treesitter" }
+      end
+    elseif node_type == "link_label" then
+      local parent = node:parent()
+      if parent and parent:type() == "full_reference_link" then
+        return { kind = "reference", label = vim.treesitter.get_node_text(node, bufnr), source = "treesitter" }
       end
     end
-  elseif node and node:type() == "link_destination" then
-    link_text = get_node_text(node)
-    if is_url(link_text) then
-      link_url = link_text
-    end
-  end
-  if link_url then
-    if mode == "float" then
-      vim.notify("Cannot open URLs in float mode", vim.log.levels.INFO)
-      return
-    end
 
-    vim.ui.open(link_url)
-    return
+    node = node:parent()
   end
 
-  local function get_visual_selection()
-    local s_start = vim.fn.getpos("'<")
-    local s_end = vim.fn.getpos("'>")
-    local n_lines = math.abs(s_end[2] - s_start[2]) + 1
-    local lines = vim.api.nvim_buf_get_lines(0, s_start[2] - 1, s_end[2], false)
-    lines[1] = string.sub(lines[1], s_start[3], -1)
-    if n_lines == 1 then
-      lines[n_lines] = string.sub(lines[n_lines], 1, s_end[3] - s_start[3] + 1)
-    else
-      lines[n_lines] = string.sub(lines[n_lines], 1, s_end[3])
-    end
-    return table.concat(lines, '\n')
+  return nil
+end
+
+local function markdown_extract_wiki_source(match_text)
+  local inner = match_text:match("^%[%[(.-)%]%]$")
+  if not inner or inner == "" then
+    return nil
   end
-  local ccontent
-  if mode == "visual" or mode == "float_visual" then
-    ccontent = get_visual_selection()
-  elseif mode == "cline" or mode == "float_cline" then
-    ccontent = vim.api.nvim_get_current_line()
-  elseif mode == "cfile" or mode == "float" then
-    ccontent = vim.fn.expand("<cfile>")
+
+  local source = inner:match("^(.-)|") or inner
+  return markdown_normalize_link_target(source)
+end
+
+local function markdown_match_at_cursor(text, cursor_col, pattern, extractor)
+  local start = 1
+  while start <= #text do
+    local match_start, match_end = text:find(pattern, start)
+    if not match_start then
+      break
+    end
+
+    if not cursor_col or (match_start <= cursor_col and cursor_col <= match_end) then
+      local match_text = text:sub(match_start, match_end)
+      local result = extractor(match_text)
+      if result then
+        return result
+      end
+    end
+
+    start = match_start + 1
+  end
+end
+
+local function markdown_regex_reference(label)
+  if not label then
+    return nil
+  end
+  return { kind = "reference", label = label, source = "regex" }
+end
+
+local function markdown_extract_plain_token(text, cursor_col)
+  if not cursor_col or cursor_col < 1 or cursor_col > #text + 1 then
+    return nil
+  end
+
+  local function is_token_char(ch)
+    return ch:match("[%w%._~/%-#:@]") ~= nil
+  end
+
+  local left = math.min(cursor_col, #text)
+  local right = left
+
+  while left > 1 and is_token_char(text:sub(left - 1, left - 1)) do
+    left = left - 1
+  end
+  while right <= #text and is_token_char(text:sub(right, right)) do
+    right = right + 1
+  end
+
+  local token = markdown_normalize_link_target(text:sub(left, right - 1))
+  if not token or token == "" then
+    return nil
+  end
+
+  if markdown_is_url(token) or markdown_is_email(token) or token:find("/") or token:find("#") or token:find("%.") then
+    return { target = token, source = "regex" }
+  end
+
+  return nil
+end
+
+local function markdown_try_regex_link(mode)
+  local text, cursor_col = markdown_get_source_text(mode)
+  if not text or text == "" then
+    return nil
+  end
+
+  return markdown_match_at_cursor(text, cursor_col, "%[%[[^%]]-%]%]", function(match_text)
+    local source = markdown_extract_wiki_source(match_text)
+    if source then
+      return { target = source, source = "regex" }
+    end
+  end)
+      or markdown_match_at_cursor(text, cursor_col, "!?%b[]%b()", function(match_text)
+    local destination = match_text:match("^!?%b[]%((.-)%)$")
+    if destination then
+      return { target = markdown_normalize_link_target(destination), source = "regex" }
+    end
+  end)
+      or markdown_match_at_cursor(text, cursor_col, "%b[]%b[]", function(match_text)
+        local label = match_text:match("^%b[]%[([^%]]+)%]$")
+        if label and label ~= "" then
+          return markdown_regex_reference(label)
+        end
+      end)
+      or markdown_match_at_cursor(text, cursor_col, "%b[]", function(match_text)
+        local label = markdown_normalize_reference_label(match_text)
+        if label and label ~= "" then
+          return markdown_regex_reference(label)
+        end
+      end)
+      or markdown_match_at_cursor(text, cursor_col, "<[^<>]+>", function(match_text)
+        local target = markdown_normalize_link_target(match_text)
+        if markdown_is_url(target) or markdown_is_email(target) or markdown_is_file_uri(target) then
+          return { target = target, source = "regex" }
+        end
+      end)
+      or markdown_match_at_cursor(text, cursor_col, "file:[^%s%]%}>\"']+", function(match_text)
+        return { target = markdown_normalize_link_target(match_text), source = "regex" }
+      end)
+      or markdown_match_at_cursor(text, cursor_col, "[%a][%w+.-]*://[^%s%]%}>\"']+", function(match_text)
+        return { target = markdown_normalize_link_target(match_text), source = "regex" }
+      end)
+      or markdown_extract_plain_token(text, cursor_col)
+end
+
+function Nvim.MarkDownTool.toggle_checkbox(row)
+  row = row or vim.api.nvim_win_get_cursor(0)[1]
+
+  local line = vim.api.nvim_buf_get_lines(0, row - 1, row, false)[1]
+  if not line or line == "" then
+    return false
+  end
+
+  local symbols = (((Nvim.MarkDownTool.config or {}).checkbox or {}).symbols) or { " ", "x" }
+  if type(symbols) ~= "table" or #symbols == 0 then
+    symbols = { " ", "x" }
+  end
+
+  local prefix, current, suffix = line:match("^(%s*[-*+]%s+%[)(.)(%].*)$")
+  if not prefix then
+    prefix, current, suffix = line:match("^(%s*%d+%.%s+%[)(.)(%].*)$")
+  end
+  if not prefix then
+    return false
+  end
+
+  local current_index
+  for idx, symbol in ipairs(symbols) do
+    if symbol == current then
+      current_index = idx
+      break
+    end
+  end
+  if not current_index then
+    return false
+  end
+
+  local next_index = current_index == #symbols and 1 or current_index + 1
+  vim.api.nvim_buf_set_lines(0, row - 1, row, false, { prefix .. symbols[next_index] .. suffix })
+  return true
+end
+
+function Nvim.MarkDownTool.get_link_under_cursor(mode)
+  local bufnr = vim.api.nvim_get_current_buf()
+  markdown_mark_initial_context(bufnr)
+  local resolved = markdown_try_treesitter_link(bufnr) or markdown_try_regex_link(mode)
+  if not resolved then
+    return nil
+  end
+
+  if resolved.kind == "reference" then
+    local target = markdown_resolve_reference_label(resolved.label, bufnr)
+    if not target then
+      return nil
+    end
+    resolved = { target = target, source = resolved.source, kind = "path" }
+  end
+
+  resolved.target = markdown_normalize_link_target(resolved.target)
+  if not resolved.target then
+    return nil
+  end
+
+  if markdown_is_email(resolved.target) then
+    resolved.kind = "url"
+    resolved.target = "mailto:" .. resolved.target
+  elseif markdown_is_url(resolved.target) then
+    resolved.kind = "url"
+  elseif markdown_is_file_uri(resolved.target) then
+    resolved.kind = "file"
   else
-    ccontent = vim.fn.expand("<cfile>")
+    resolved.kind = "path"
   end
-  link_text = link_text or ccontent
+
+  return resolved
+end
+
+local function markdown_split_path_and_search(target, bufnr)
+  if markdown_is_file_uri(target) then
+    target = target:gsub("^file:", "")
+  end
+
+  if target:sub(1, 1) == "#" then
+    return vim.api.nvim_buf_get_name(bufnr), target:sub(2), "anchor"
+  end
+
+  local path, anchor = target:match("^(.-)#(.+)$")
+  if path and anchor then
+    if path == "" then
+      path = vim.api.nvim_buf_get_name(bufnr)
+    end
+    return path, anchor, "anchor"
+  end
+
+  return target, nil, nil
+end
+
+local function markdown_find_root_dir(start_dir, root_tell)
+  if not root_tell or root_tell == false then
+    return nil
+  end
+
+  local markers = type(root_tell) == "table" and root_tell or { root_tell }
+  local dir = start_dir
+  while dir and dir ~= "" do
+    for _, marker in ipairs(markers) do
+      if vim.uv.fs_stat(vim.fs.joinpath(dir, marker)) then
+        return dir
+      end
+    end
+
+    local parent = vim.fs.dirname(dir)
+    if not parent or parent == dir then
+      break
+    end
+    dir = parent
+  end
+
+  return nil
+end
+
+local function markdown_resolve_perspective_dir(bufnr, strategy, fallback)
+  local config = Nvim.MarkDownTool.config or {}
+  local perspective = config.perspective or {}
+  local source_name = vim.api.nvim_buf_get_name(bufnr)
+  local current_dir = source_name ~= "" and vim.fs.dirname(source_name) or vim.uv.cwd()
+  local state = Nvim.MarkDownTool.state or {}
+
+  strategy = strategy or perspective.priority or "current"
+  fallback = fallback or perspective.fallback or "current"
+
+  if strategy == "current" then
+    return current_dir
+  end
+
+  if strategy == "first" then
+    return state.initial_dir or current_dir
+  end
+
+  if strategy == "root" then
+    local root_dir = markdown_find_root_dir(current_dir, perspective.root_tell)
+    if root_dir then
+      return root_dir
+    end
+
+    if fallback and fallback ~= strategy then
+      return markdown_resolve_perspective_dir(bufnr, fallback, "current")
+    end
+  end
+
+  return current_dir
+end
+
+local function markdown_resolve_relative_path(path, bufnr)
+  path = markdown_normalize_link_target(path)
+  if not path then
+    return nil
+  end
+
+  path = vim.fn.expand(path)
+  if path:match("^/") or path:match("^%a:[/\\]") then
+    return vim.fs.normalize(path)
+  end
+
+  local base_dir = markdown_resolve_perspective_dir(bufnr)
+  return vim.fs.normalize(vim.fs.joinpath(base_dir, path))
+end
+
+local function markdown_slugify_heading(text)
+  text = text:lower()
+  text = text:gsub("`", "")
+  text = text:gsub("[*_~%[%]%(%){}<>!@#$%%^&+=:;\"',.?/\\|]", "")
+  text = text:gsub("%s+", "-")
+  text = text:gsub("%-+", "-")
+  text = text:gsub("^%-", ""):gsub("%-$", "")
+  return text
+end
+
+local function markdown_find_anchor_line(lines, anchor)
+  local slug = markdown_slugify_heading(anchor or "")
+  if slug == "" then
+    return nil
+  end
+
+  for idx, line in ipairs(lines) do
+    local bracket_start, bracket_end = line:find("%b[]%b{}")
+    while bracket_start and bracket_end do
+      local span = line:sub(bracket_start, bracket_end)
+      if span:match("{[^}]-#" .. vim.pesc(anchor) .. "[^}]-}") then
+        return idx, bracket_start - 1
+      end
+      bracket_start, bracket_end = line:find("%b[]%b{}", bracket_end + 1)
+    end
+
+    local heading = line:match("^%s*#+%s+(.+)$")
+    if heading and markdown_slugify_heading(heading) == slug then
+      return idx, 0
+    end
+  end
+
+  return nil
+end
+
+local function markdown_jump_to_search(lines, link_search, link_search_kind)
+  if not link_search then
+    return false
+  end
+
+  if link_search_kind == "anchor" then
+    local line, col = markdown_find_anchor_line(lines, link_search)
+    if line then
+      vim.api.nvim_win_set_cursor(0, { line, col or 0 })
+      vim.cmd("normal! zz")
+      return true
+    end
+    return false
+  end
+
+  local found = vim.fn.search("\\V" .. vim.fn.escape(link_search, "\\"), "W")
+  vim.cmd("normal! zz")
+  return found ~= 0
+end
+
+function Nvim.MarkDownTool.open_link(mode)
+  local bufnr = vim.api.nvim_get_current_buf()
+  local resolved = Nvim.MarkDownTool.get_link_under_cursor(mode)
+  if not resolved then
+    return false
+  end
+
+  if resolved.kind == "url" then
+    vim.ui.open(resolved.target)
+    return true
+  end
+
+  local link_text, link_search, link_search_kind = markdown_split_path_and_search(resolved.target, bufnr)
+  link_text = markdown_resolve_relative_path(link_text, bufnr)
   if not link_text or link_text == "" then
-    vim.notify("No file or link under cursor", vim.log.levels.WARN)
-    return
+    return false
   end
+
+  if resolved.kind == "file" then
+    vim.ui.open(link_text)
+    return true
+  end
+
+  local current_filetype = vim.bo.filetype or ""
+  local is_ai_chat_buffer = current_filetype == "copilot-chat" or current_filetype:match("^Avante") ~= nil
 
   --- Get Ai chat symbol and filename
   ---
   --- Support Avante and CopilotChat
-  --- surrounding the cursor position and splits the conflicting changes into two
-  --- separate buffers, displayed side by side in a diff view.
-  local function get_ai_chat_link(link_text)
-    local link_search, filename
-    local link_search_ok = true
-    local file_search_ok = true
+  local function get_ai_chat_link(search_text)
+    local filename
     local curr_line = vim.api.nvim_win_get_cursor(0)[1]
 
-    -- Get: CopilotChat filename
     if vim.bo.filetype == "copilot-chat" then
       local ok, copilot = pcall(require, "CopilotChat")
       if ok and type(copilot.get_source) == "function" then
         local success, result = pcall(copilot.get_source)
         if success and result and result.bufnr then
           filename = vim.api.nvim_buf_get_name(result.bufnr)
-        else
-          vim.notify('CopilotChat: `get_source().bufnr` is no longer available.', vim.log.levels.WARN)
         end
-      else
-        vim.notify('CopilotChat: `get_source()` function is no longer available.', vim.log.levels.WARN)
       end
     else
-      -- Get: Avante filename
       for i = curr_line - 1, 0, -1 do
         local line = vim.api.nvim_buf_get_lines(0, i, i + 1, false)[1]
-
-        -- exact match "Filepath: xxx"
         if line:match("^Filepath:%s+") then
           filename = line:match("^Filepath:%s+(.+)$")
           break
         end
-
-        -- exact match "- Selected files:"，and get filename of below line
         if line == "- Selected files:" then
           local next_line = vim.api.nvim_buf_get_lines(0, i + 1, i + 2, false)[1]
           if next_line then
@@ -751,59 +1213,38 @@ function Nvim.MarkDownTool.open_link(mode)
       end
     end
 
-    -- check search_text in file when filename is exists
     if filename and vim.fn.filereadable(filename) == 1 then
-      link_search = link_text
-      link_text = filename
-
-      -- check search_text in search file
-      local lines
-      local link_text_file_bufnr = vim.fn.bufnr(link_text)
-      if link_text_file_bufnr ~= -1 and vim.fn.bufloaded(link_text_file_bufnr) == 1 then
-        lines = vim.api.nvim_buf_get_lines(link_text_file_bufnr, 0, -1, false)
-      else
-        lines = vim.fn.readfile(link_text)
-      end
-
-      local found = false
-      for _, line in ipairs(lines) do
-        if line:find(link_search, 1, true) then
-          found = true
-          break
-        end
-      end
-
-      if not found then
-        link_search_ok = false
-      end
-    else
-      file_search_ok = false
+      return true, true, filename, search_text, link_search_kind
     end
-    return file_search_ok, link_search_ok, filename, link_search
+
+    return false, false, filename, search_text, link_search_kind
   end
 
-  local file_search_ok, link_search_ok, filename, link_search
-  if vim.fn.filereadable(link_text) == 0 then
-    file_search_ok, link_search_ok, filename, link_search = get_ai_chat_link(link_text)
+  local existing_target_bufnr = vim.fn.bufnr(link_text)
+  local target_is_loaded_buffer = existing_target_bufnr ~= -1 and vim.fn.bufloaded(existing_target_bufnr) == 1
 
-    link_text = filename
-    -- NOTE: if search is multiple lines (in visual mode), will false of get link_search_ok
-    if file_search_ok and not link_search_ok then
-      vim.notify("File '" .. link_text .. "' found, but symbol '" .. link_search .. "' not present.", vim.log.levels
-        .WARN)
-      return
-    elseif not file_search_ok then
-      vim.notify("File not found: " .. (filename or link_text or ""), vim.log.levels.ERROR)
-      return
+  if vim.fn.filereadable(link_text) == 0 and not target_is_loaded_buffer then
+    if is_ai_chat_buffer then
+      local file_search_ok, link_search_ok, filename, inferred_search, inferred_search_kind = get_ai_chat_link(link_text)
+      if file_search_ok then
+        link_text = filename
+        link_search = inferred_search
+        link_search_kind = inferred_search_kind
+        if link_search_ok == false then
+          return false
+        end
+      else
+        return false
+      end
+    else
+      return false
     end
   end
 
   if mode == "float" or mode == "float_cline" or mode == "float_visual" then
-    -- Float window mode
     local buf = vim.api.nvim_create_buf(false, true)
-
-    local lines
     local link_text_file_bufnr = vim.fn.bufnr(link_text)
+    local lines
     if link_text_file_bufnr ~= -1 and vim.fn.bufloaded(link_text_file_bufnr) == 1 then
       lines = vim.api.nvim_buf_get_lines(link_text_file_bufnr, 0, -1, false)
     else
@@ -813,7 +1254,6 @@ function Nvim.MarkDownTool.open_link(mode)
     vim.api.nvim_set_option_value("bufhidden", "wipe", { buf = buf })
 
     local filetype = vim.filetype.match({ filename = link_text }) or ""
-
     if filetype ~= "" then
       vim.api.nvim_set_option_value("filetype", filetype, { buf = buf })
     end
@@ -838,32 +1278,44 @@ function Nvim.MarkDownTool.open_link(mode)
     vim.api.nvim_set_option_value("readonly", true, { buf = buf })
     if link_text_file_bufnr ~= -1 then
       local winbar_text = string.format("%%#Winbar#%s%%*", link_text)
-
       local icon, icon_hl = require("nvim-web-devicons").get_icon_by_filetype(filetype)
       if icon and icon_hl then
         winbar_text = string.format("%%#%s#%s%%* ", icon_hl, icon) .. winbar_text
       end
-
       if vim.api.nvim_get_option_value("mod", { buf = link_text_file_bufnr }) then
         local mod = require("user.config.icons").ui.Circle or ""
         winbar_text = winbar_text .. string.format(" %%#LspCodeLens#%s%%*", mod)
       end
-
       vim.api.nvim_set_option_value("winbar", winbar_text, { win = float_win })
     end
 
     if link_search then
       vim.api.nvim_win_set_cursor(0, { 1, 0 })
-      vim.fn.search("\\V" .. link_search, "W")
-      vim.cmd("normal! zz")
+      markdown_jump_to_search(lines, link_search, link_search_kind)
     end
-    return
+    return true
+  end
+
+  if not is_ai_chat_buffer then
+    local current_bufnr = vim.api.nvim_get_current_buf()
+    if current_bufnr ~= vim.fn.bufnr(link_text) then
+      vim.cmd("edit " .. vim.fn.fnameescape(link_text))
+    end
+
+    if link_search then
+      local lines = vim.api.nvim_buf_get_lines(0, 0, -1, false)
+      vim.api.nvim_win_set_cursor(0, { 1, 0 })
+      return markdown_jump_to_search(lines, link_search, link_search_kind)
+    end
+
+    return true
   end
 
   local TEMP_HL_NS = vim.api.nvim_create_namespace("temporary_highlight")
   if vim.fn.hlexists("SagaBeacon") == 0 then
     vim.api.nvim_set_hl(0, "SagaBeacon", { bg = '#c43963' })
   end
+
   local function flash_and_wincmd_p(len, delay_ms)
     delay_ms = delay_ms or 200
     local row, col = unpack(vim.api.nvim_win_get_cursor(0))
@@ -881,12 +1333,11 @@ function Nvim.MarkDownTool.open_link(mode)
     end, delay_ms)
   end
 
-  local function flash_search_and_wincmd_p(link_search, delay_ms)
+  local function flash_search_and_wincmd_p(lines, search_text, search_kind, delay_ms)
     delay_ms = delay_ms or 200
-    local found = vim.fn.search("\\V" .. link_search, "W")
-    vim.cmd("normal! zz")
-    if found ~= 0 then
-      local len = #link_search
+    local found = markdown_jump_to_search(lines, search_text, search_kind)
+    if found then
+      local len = search_kind == "anchor" and nil or #search_text
       flash_and_wincmd_p(len, delay_ms)
     else
       vim.cmd("wincmd p")
@@ -895,7 +1346,6 @@ function Nvim.MarkDownTool.open_link(mode)
 
   local target_bufnr = vim.fn.bufnr(link_text)
   local target_win = nil
-
   for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
     if vim.api.nvim_win_get_buf(win) == target_bufnr then
       target_win = win
@@ -908,37 +1358,30 @@ function Nvim.MarkDownTool.open_link(mode)
     local ok, window_picker = pcall(require, "window-picker")
     if not ok then
       vim.notify("window-picker not found", vim.log.levels.ERROR)
-      return
+      return false
     end
     picked_win = window_picker.pick_window()
-    if picked_win then
-      vim.api.nvim_set_current_win(picked_win)
-      local current_picked_win_bufnr = vim.api.nvim_win_get_buf(picked_win)
-      if current_picked_win_bufnr ~= vim.fn.bufnr(link_text) then
-        vim.cmd("edit " .. link_text)
-      end
-      if link_search then
-        vim.api.nvim_win_set_cursor(0, { 1, 0 })
-        flash_search_and_wincmd_p(link_search)
-      else
-        flash_and_wincmd_p()
-      end
-    else
+    if not picked_win then
       vim.notify("No window picked", vim.log.levels.INFO)
-    end
-  else
-    vim.api.nvim_set_current_win(picked_win)
-    local current_picked_win_bufnr = vim.api.nvim_win_get_buf(picked_win)
-    if current_picked_win_bufnr ~= vim.fn.bufnr(link_text) then
-      vim.cmd("edit " .. link_text)
-    end
-    if link_search then
-      vim.api.nvim_win_set_cursor(0, { 1, 0 })
-      flash_search_and_wincmd_p(link_search)
-    else
-      flash_and_wincmd_p()
+      return false
     end
   end
+
+  vim.api.nvim_set_current_win(picked_win)
+  local current_picked_win_bufnr = vim.api.nvim_win_get_buf(picked_win)
+  if current_picked_win_bufnr ~= vim.fn.bufnr(link_text) then
+    vim.cmd("edit " .. vim.fn.fnameescape(link_text))
+  end
+
+  if link_search then
+    local lines = vim.api.nvim_buf_get_lines(0, 0, -1, false)
+    vim.api.nvim_win_set_cursor(0, { 1, 0 })
+    flash_search_and_wincmd_p(lines, link_search, link_search_kind)
+  else
+    flash_and_wincmd_p()
+  end
+
+  return true
 end
 
 --- Check if filetype window exists

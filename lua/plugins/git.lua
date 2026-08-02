@@ -6,6 +6,9 @@ return {
   },
   {
     "rbong/vim-flog",
+    dependencies = {
+      "ESSO0428/vim-fugitive",
+    },
     cmd = { "Flog", "Floggit", "Flogsplit" },
   },
   {

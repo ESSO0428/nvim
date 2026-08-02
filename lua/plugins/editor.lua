@@ -13,9 +13,7 @@ return {
   },
   {
     "theniceboy/antovim",
-    keys = {
-      { "gs", "<cmd>Antovim<cr>", desc = "Antovim" },
-    }
+    cmd = "Antovim",
   },
   {
     "godlygeek/tabular",

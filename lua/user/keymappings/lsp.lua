@@ -1,5 +1,36 @@
 -- Nvim.keys.normal_mode["gh"] = { vim.lsp.buf.hover, { desc = "LSP: documentation hover" } }
 -- Nvim.keys.normal_mode["gm"] = { vim.lsp.buf.signature_help, { desc = "LSP: signature help" } }
+
+local function filetype_specific_antovim()
+  local ok, captures = pcall(vim.treesitter.get_captures_at_cursor, 0)
+  if not ok or type(captures) ~= "table" then
+    return false
+  end
+
+  for _, capture in ipairs(captures) do
+    local name = type(capture) == "table" and (capture.capture or capture[1]) or capture
+    if name == "spell" then
+      return true
+    end
+  end
+
+  return false
+end
+
+local function execute_check_action_toggle_on_filetype()
+  local filetype = vim.bo.filetype
+  if filetype == "org" or filetype == "markdown" then
+    if not filetype_specific_antovim() then
+      vim.cmd("normal gS")
+    else
+      vim.cmd("Antovim")
+    end
+  else
+    vim.cmd("Antovim")
+  end
+end
+
+Nvim.keys.normal_mode["gs"] = { execute_check_action_toggle_on_filetype, { desc = "Toggle checkbox or Antovim" } }
 Nvim.keys.normal_mode["gh"]            = { "<cmd>lua vim.lsp.buf.hover({ border = 'rounded' })<cr>",
   { desc = "LSP: documentation hover" } }
 Nvim.keys.normal_mode["gm"]            = { "<cmd>lua require('lsp_signature').toggle_float_win()<cr>",

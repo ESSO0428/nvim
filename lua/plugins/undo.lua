@@ -1,4 +1,3 @@
-Nvim.keys.normal_mode["Z"] = { "<cmd>UndotreeToggle<cr>", desc = "Toggle undo tree" }
 vim.g.undotree_DiffAutoOpen = 1
 vim.g.undotree_SetFocusWhenToggle = 1
 vim.g.undotree_ShortIndicators = 1
@@ -24,7 +23,7 @@ vim.cmd([[
 return {
   {
     "mbbill/undotree",
-    event = "User FileOpened",
+    cmd = { "UndotreeToggle", "UndotreeShow", "UndotreeHide", "UndotreeFocus" },
   },
   {
     "kevinhwang91/nvim-fundo",
