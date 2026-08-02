@@ -271,5 +271,7 @@ end
 Nvim.keys.visual_mode['<leader>On'] = { function() narrow_except_selection(true, false) end }
 Nvim.keys.normal_mode['<leader>On'] = { function() narrow_except_selection(false, false) end,
   { desc = 'Zoom-in Folding to split' } }
-Nvim.keys.normal_mode['<leader>ON'] = { function() narrow_except_selection(false, true) end,
+Nvim.keys.normal_mode['<leader>Oj'] = { function() narrow_except_selection(false, true) end,
+  { desc = 'Neo-Zoom-in Folding to split' } }
+Nvim.keys.normal_mode['<leader>Ol'] = { "<cmd>fclose<cr>",
   { desc = 'Neo-Zoom-in Folding to split' } }
