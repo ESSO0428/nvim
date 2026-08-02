@@ -769,7 +769,7 @@ local plugins = {
   },
   {
     "hedyhli/outline.nvim",
-    cmd = { "Outline", "OutlineOpen" },
+    cmd = { "Outline", "OutlineOpen", "OutlineClose" },
     opts = {
       -- Your setup opts here (leave empty to use defaults)
       preview_window = {
