@@ -20,91 +20,221 @@ return {
       end,
     },
     config = function()
-      local function is_ft(b, ft)
-        return vim.bo[b].filetype == ft
-      end
-
-      local function custom_filter(buf, buf_nums)
-        local logs = vim.tbl_filter(function(b)
-          return is_ft(b, "log")
-        end, buf_nums or {})
-        if vim.tbl_isempty(logs) then
-          return true
-        end
-        local tab_num = vim.fn.tabpagenr()
-        local last_tab = vim.fn.tabpagenr "$"
-        local is_log = is_ft(buf, "log")
-        if last_tab == 1 then
-          return true
-        end
-        -- only show log buffers in secondary tabs
-        return (tab_num == last_tab and is_log) or (tab_num ~= last_tab and not is_log)
-      end
-
-      local function diagnostics_indicator(num, _, diagnostics, _)
-        local result = {}
-        local symbols = {
-          error = "",
-          warning = "",
-          info = "",
-        }
-        for name, count in pairs(diagnostics) do
-          if symbols[name] and count > 0 then
-            table.insert(result, symbols[name] .. " " .. count)
-          end
-        end
-        result = table.concat(result, " ")
-        return #result > 0 and result or ""
-      end
-
       local ok_bufferline, bufferline = pcall(require, "bufferline")
       if not ok_bufferline then
         return
       end
 
-      local status_ok, bufferline = pcall(require, "bufferline")
-      if not status_ok then
-        return
-      end
-
       local builtin_bufferline = vim.deepcopy(Nvim.builtin.bufferline or {})
-      local bufferline_options = vim.deepcopy(builtin_bufferline.options or {})
+      local bufferline_options =
+      vim.deepcopy(builtin_bufferline.options or {})
 
+      -- 加入預設 ungrouped group。
       local ok_groups, groups = pcall(require, "bufferline.groups")
-      if ok_groups and bufferline_options.groups and vim.islist(bufferline_options.groups.items) then
-        local ungrouped = groups.builtin.ungrouped:with({
-          name = "ungrouped",
-          separator = {
-            style = groups.separator.pill,
-          },
-        })
-        local has_ungrouped = vim.iter(bufferline_options.groups.items):any(function(item)
+
+      if ok_groups
+          and bufferline_options.groups
+          and vim.islist(bufferline_options.groups.items) then
+        local has_ungrouped =
+        vim.iter(bufferline_options.groups.items):any(function(item)
           return item.name == "ungrouped"
         end)
+
         if not has_ungrouped then
-          table.insert(bufferline_options.groups.items, ungrouped)
+          local ungrouped = groups.builtin.ungrouped:with({
+            name = "ungrouped",
+            separator = {
+              style = groups.separator.pill,
+            },
+          })
+
+          table.insert(
+            bufferline_options.groups.items,
+            ungrouped
+          )
         end
       end
+      local function install_bufferline_render_cache()
+        local original = _G.nvim_bufferline
 
-      -- can't be set in settings.lua because default tabline would flash before bufferline is loaded
-      vim.opt.showtabline = 2
-      bufferline.setup {
-        on_config_done = builtin_bufferline.on_config_done,
-        highlights = vim.deepcopy(builtin_bufferline.highlights or {}),
-        options = bufferline_options,
-      }
-      require("user.integrated.bufferline.nvimTabline")
-      if builtin_bufferline.on_config_done then
-        builtin_bufferline.on_config_done()
+        if type(original) ~= "function" then
+          vim.notify(
+            "[bufferline] nvim_bufferline is unavailable",
+            vim.log.levels.ERROR
+          )
+          return
+        end
+
+        local cached
+        local valid = false
+        local resize_generation = 0
+
+        -- 診斷計數器。
+        local cache_hits = 0
+        local cache_misses = 0
+        local invalidations = 0
+
+        local cache_group = vim.api.nvim_create_augroup(
+          "BufferlineRenderCache",
+          { clear = true }
+        )
+
+        local function invalidate(redraw)
+          if valid then
+            invalidations = invalidations + 1
+          end
+
+          valid = false
+
+          if redraw then
+            vim.schedule(function()
+              vim.cmd.redrawtabline()
+            end)
+          end
+        end
+
+        -- 這些事件確實可能改變 bufferline 內容。
+        vim.api.nvim_create_autocmd({
+          "BufEnter",
+          "BufAdd",
+          "BufDelete",
+          "BufWipeout",
+          "BufFilePost",
+          "FileType",
+          "TabEnter",
+          "ColorScheme",
+        }, {
+          group = cache_group,
+          callback = function()
+            invalidate(false)
+          end,
+        })
+
+        -- modified 狀態切換時立即更新。
+        vim.api.nvim_create_autocmd("BufModifiedSet", {
+          group = cache_group,
+          callback = function()
+            invalidate(true)
+          end,
+        })
+
+        -- 如果 bufferline 顯示 diagnostics，就保留。
+        -- 若 options.diagnostics = false，可以刪除這段。
+        if bufferline_options.diagnostics then
+          vim.api.nvim_create_autocmd("DiagnosticChanged", {
+            group = cache_group,
+            callback = function()
+              invalidate(true)
+            end,
+          })
+        end
+
+        -- bufferline hover 樣式變化。
+        vim.api.nvim_create_autocmd("User", {
+          group = cache_group,
+          pattern = {
+            "BufferLineHoverOver",
+            "BufferLineHoverOut",
+          },
+          callback = function()
+            invalidate(true)
+          end,
+        })
+
+        -- resize 期間持續使用舊快取；
+        -- 停止 resize 120ms 後只重新計算一次。
+        vim.api.nvim_create_autocmd({
+          "VimResized",
+          "WinResized",
+        }, {
+          group = cache_group,
+          callback = function()
+            resize_generation = resize_generation + 1
+            local generation = resize_generation
+
+            vim.defer_fn(function()
+              if generation ~= resize_generation then
+                return
+              end
+
+              invalidate(true)
+            end, 120)
+          end,
+        })
+
+        _G.nvim_bufferline = function()
+          if valid and cached ~= nil then
+            cache_hits = cache_hits + 1
+            return cached
+          end
+
+          cache_misses = cache_misses + 1
+          cached = original()
+          valid = true
+
+          return cached
+        end
+
+        vim.api.nvim_create_user_command(
+          "BufferlineCacheResetStats",
+          function()
+            cache_hits = 0
+            cache_misses = 0
+            invalidations = 0
+
+            vim.notify(
+              "Bufferline cache statistics reset",
+              vim.log.levels.INFO
+            )
+          end,
+          {
+            desc = "Reset bufferline render-cache statistics",
+            force = true,
+          }
+        )
       end
+
+      -- 避免預設 tabline 在 bufferline 載入前閃爍。
+      vim.opt.showtabline = 2
+
+      bufferline.setup({
+        highlights =
+        vim.deepcopy(builtin_bufferline.highlights or {}),
+
+        options = bufferline_options,
+
+        -- 只交給 bufferline.setup 執行一次。
+        on_config_done = builtin_bufferline.on_config_done,
+      })
+
+      -- 必須在 bufferline.setup 後載入，
+      -- 若這個模組會修改 bufferline/tabline 狀態。
+      local ok_integrated, integrated_err =
+      pcall(require, "user.integrated.bufferline.nvimTabline")
+
+      if not ok_integrated then
+        vim.notify(
+          ("Failed to load bufferline integration: %s")
+          :format(integrated_err),
+          vim.log.levels.WARN
+        )
+      end
+
       local ok_tabline, tabline = pcall(require, "tabline")
+
       if ok_tabline then
+        -- 若這個函式會建立 session tab 資料，保留。
         tabline.on_session_load_post()
-        vim.o.tabline = "%!v:lua.nvim_bufferline() .. v:lua.require'tabline'.tabline_tabs()"
+
+        vim.o.tabline =
+        "%!v:lua.nvim_bufferline()"
+            .. " .. v:lua.require'tabline'.tabline_tabs()"
       else
         vim.o.tabline = "%!v:lua.nvim_bufferline()"
       end
-    end,
+      -- 一定要在整合模組與 tabline 初始化之後安裝。
+      install_bufferline_render_cache()
+    end
   },
   {
     "nvim-lua/popup.nvim",
