@@ -65,26 +65,30 @@ return {
           return
         end
 
-        local cached
-        local valid = false
-        local resize_generation = 0
+        local render_cache = {}
+        local generation = 0
 
-        -- 診斷計數器。
-        local cache_hits = 0
-        local cache_misses = 0
-        local invalidations = 0
+        local resizing = false
+        local resize_generation = 0
+        local frozen_cache = nil
 
         local cache_group = vim.api.nvim_create_augroup(
           "BufferlineRenderCache",
           { clear = true }
         )
 
-        local function invalidate(redraw)
-          if valid then
-            invalidations = invalidations + 1
-          end
+        local function make_cache_key()
+          return table.concat({
+            generation,
+            vim.api.nvim_get_current_tabpage(),
+            vim.api.nvim_get_current_buf(),
+          }, ":")
+        end
 
-          valid = false
+        local function invalidate_all(redraw)
+          generation = generation + 1
+          render_cache = {}
+          frozen_cache = nil
 
           if redraw then
             vim.schedule(function()
@@ -93,43 +97,38 @@ return {
           end
         end
 
-        -- 這些事件確實可能改變 bufferline 內容。
         vim.api.nvim_create_autocmd({
-          "BufEnter",
           "BufAdd",
           "BufDelete",
           "BufWipeout",
           "BufFilePost",
           "FileType",
-          "TabEnter",
           "ColorScheme",
+          "TabNew",
+          "TabClosed",
         }, {
           group = cache_group,
           callback = function()
-            invalidate(false)
+            invalidate_all(false)
           end,
         })
 
-        -- modified 狀態切換時立即更新。
         vim.api.nvim_create_autocmd("BufModifiedSet", {
           group = cache_group,
           callback = function()
-            invalidate(true)
+            invalidate_all(true)
           end,
         })
 
-        -- 如果 bufferline 顯示 diagnostics，就保留。
-        -- 若 options.diagnostics = false，可以刪除這段。
         if bufferline_options.diagnostics then
           vim.api.nvim_create_autocmd("DiagnosticChanged", {
             group = cache_group,
             callback = function()
-              invalidate(true)
+              invalidate_all(true)
             end,
           })
         end
 
-        -- bufferline hover 樣式變化。
         vim.api.nvim_create_autocmd("User", {
           group = cache_group,
           pattern = {
@@ -137,58 +136,58 @@ return {
             "BufferLineHoverOut",
           },
           callback = function()
-            invalidate(true)
+            invalidate_all(true)
           end,
         })
 
-        -- resize 期間持續使用舊快取；
-        -- 停止 resize 120ms 後只重新計算一次。
         vim.api.nvim_create_autocmd({
           "VimResized",
           "WinResized",
         }, {
           group = cache_group,
           callback = function()
+            resizing = true
             resize_generation = resize_generation + 1
-            local generation = resize_generation
+            local current = resize_generation
 
             vim.defer_fn(function()
-              if generation ~= resize_generation then
+              if current ~= resize_generation then
                 return
               end
 
-              invalidate(true)
+              resizing = false
+              invalidate_all(true)
             end, 120)
           end,
         })
 
         _G.nvim_bufferline = function()
-          if valid and cached ~= nil then
-            cache_hits = cache_hits + 1
+          if resizing and frozen_cache ~= nil then
+            return frozen_cache
+          end
+
+          local key = make_cache_key()
+          local cached = render_cache[key]
+
+          if cached ~= nil then
+            frozen_cache = cached
             return cached
           end
 
-          cache_misses = cache_misses + 1
-          cached = original()
-          valid = true
+          local rendered = original()
+          render_cache[key] = rendered
+          frozen_cache = rendered
 
-          return cached
+          return rendered
         end
 
         vim.api.nvim_create_user_command(
-          "BufferlineCacheResetStats",
+          "BufferlineCacheInvalidate",
           function()
-            cache_hits = 0
-            cache_misses = 0
-            invalidations = 0
-
-            vim.notify(
-              "Bufferline cache statistics reset",
-              vim.log.levels.INFO
-            )
+            invalidate_all(true)
           end,
           {
-            desc = "Reset bufferline render-cache statistics",
+            desc = "Invalidate and redraw bufferline render cache",
             force = true,
           }
         )
