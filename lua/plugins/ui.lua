@@ -27,7 +27,7 @@ return {
 
       local builtin_bufferline = vim.deepcopy(Nvim.builtin.bufferline or {})
       local bufferline_options =
-      vim.deepcopy(builtin_bufferline.options or {})
+          vim.deepcopy(builtin_bufferline.options or {})
 
       -- 加入預設 ungrouped group。
       local ok_groups, groups = pcall(require, "bufferline.groups")
@@ -36,9 +36,9 @@ return {
           and bufferline_options.groups
           and vim.islist(bufferline_options.groups.items) then
         local has_ungrouped =
-        vim.iter(bufferline_options.groups.items):any(function(item)
-          return item.name == "ungrouped"
-        end)
+            vim.iter(bufferline_options.groups.items):any(function(item)
+              return item.name == "ungrouped"
+            end)
 
         if not has_ungrouped then
           local ungrouped = groups.builtin.ungrouped:with({
@@ -85,15 +85,28 @@ return {
           }, ":")
         end
 
+        local session_loading = vim.g.session_loading == true
+
+        -- FIX 1: 補上原本缺少的 redraw_tabline 定義。
+        -- 用 vim.schedule 包起來,避免在 fast event context
+        -- (例如 DiagnosticChanged / LSP callback)裡直接呼叫 vim.cmd 出錯。
+        local function redraw_tabline()
+          vim.schedule(function()
+            vim.cmd("redrawtabline")
+          end)
+        end
+
         local function invalidate_all(redraw)
+          if session_loading then
+            return
+          end
+
           generation = generation + 1
           render_cache = {}
           frozen_cache = nil
 
           if redraw then
-            vim.schedule(function()
-              vim.cmd.redrawtabline()
-            end)
+            redraw_tabline()
           end
         end
 
@@ -161,7 +174,12 @@ return {
           end,
         })
 
+        -- FIX 2: session 載入期間直接凍結畫面,不重算、不呼叫 original()。
         _G.nvim_bufferline = function()
+          if session_loading then
+            return frozen_cache or ""
+          end
+
           if resizing and frozen_cache ~= nil then
             return frozen_cache
           end
@@ -191,6 +209,23 @@ return {
             force = true,
           }
         )
+
+        vim.api.nvim_create_autocmd("User", {
+          group = cache_group,
+          pattern = "SessionManagerLoadPre",
+          callback = function()
+            session_loading = true
+          end,
+        })
+
+        vim.api.nvim_create_autocmd("User", {
+          group = cache_group,
+          pattern = "SessionManagerLoadPost",
+          callback = function()
+            session_loading = false
+            invalidate_all(true)
+          end,
+        })
       end
 
       -- 避免預設 tabline 在 bufferline 載入前閃爍。
@@ -198,7 +233,7 @@ return {
 
       bufferline.setup({
         highlights =
-        vim.deepcopy(builtin_bufferline.highlights or {}),
+            vim.deepcopy(builtin_bufferline.highlights or {}),
 
         options = bufferline_options,
 
@@ -209,7 +244,7 @@ return {
       -- 必須在 bufferline.setup 後載入，
       -- 若這個模組會修改 bufferline/tabline 狀態。
       local ok_integrated, integrated_err =
-      pcall(require, "user.integrated.bufferline.nvimTabline")
+          pcall(require, "user.integrated.bufferline.nvimTabline")
 
       if not ok_integrated then
         vim.notify(
@@ -226,7 +261,7 @@ return {
         tabline.on_session_load_post()
 
         vim.o.tabline =
-        "%!v:lua.nvim_bufferline()"
+            "%!v:lua.nvim_bufferline()"
             .. " .. v:lua.require'tabline'.tabline_tabs()"
       else
         vim.o.tabline = "%!v:lua.nvim_bufferline()"
@@ -501,7 +536,7 @@ return {
             { 'vim.api.nvim_call_function("getcwd", {0})' },
             { "encoding" },
             { "fileformat" },
-            { "filetype", icon_only = false },
+            { "filetype",                                 icon_only = false },
             components.lsp,
             {
               "pid",
