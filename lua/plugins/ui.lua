@@ -73,12 +73,25 @@ return {
         local render_cache = {}
         local generation = 0
 
-        -- resize 期間沿用最後一份成功 render。
-        local resizing = false
-        local resize_generation = 0
+        -- 最近一次成功 render。
         local frozen_cache = nil
 
-        -- 處理 bufferline 在 session 載入途中才 lazy-load 的情況。
+        -- resize debounce。
+        local resizing = false
+        local resize_generation = 0
+
+        -- 快速切換 buffer debounce。
+        --
+        -- active buffer 本身仍立即 render / 讀 cache，
+        -- 只延遲 modified / diagnostics 造成的全域 cache invalidation。
+        local buffer_switching = false
+        local buffer_switch_generation = 0
+        local pending_dynamic_invalidation = false
+
+        local last_active_buf =
+            vim.api.nvim_get_current_buf()
+
+        -- Session restore 狀態。
         local session_loading =
             vim.g.session_loading == true
 
@@ -102,8 +115,7 @@ return {
         end
 
         local function invalidate_all(redraw)
-          -- Session restore 期間會連續新增、刪除與切換 buffers。
-          -- 此時不清 cache，也不喚醒昂貴的 bufferline renderer。
+          -- Session restore 期間完全不清 cache。
           if session_loading then
             return
           end
@@ -117,10 +129,28 @@ return {
           end
         end
 
-        -- 這些事件會使所有 active-buffer 版本的 render 過期。
+        -- modified / diagnostics 這類動態狀態：
         --
-        -- 不要加入 BufEnter：
-        -- active buffer 已包含在 cache key 中，切換時應查找另一份 cache。
+        -- 快速切換 buffer 期間只標記 dirty，
+        -- 最後一次 BufEnter + 120ms 後才清 cache。
+        local function invalidate_dynamic_state()
+          if session_loading then
+            return
+          end
+
+          if buffer_switching then
+            pending_dynamic_invalidation = true
+            return
+          end
+
+          invalidate_all(true)
+        end
+
+        -- 結構性狀態改變：
+        -- 必須立即讓所有完整 render 過期。
+        --
+        -- 不包含 BufEnter：
+        -- active buffer 已經包含在 cache key 中。
         vim.api.nvim_create_autocmd({
           "BufAdd",
           "BufDelete",
@@ -137,25 +167,75 @@ return {
           end,
         })
 
-        -- modified 狀態 false/true 切換時立即更新。
-        vim.api.nvim_create_autocmd("BufModifiedSet", {
+        -- 快速切換 buffer debounce。
+        --
+        -- A -> B -> C -> D 時，
+        -- A/B/C/D 的 active 高亮仍立即更新。
+        --
+        -- 只是期間發生的 modified / diagnostics
+        -- 不會反覆把所有 cache 清掉。
+        vim.api.nvim_create_autocmd("BufEnter", {
           group = cache_group,
-          callback = function()
-            invalidate_all(true)
+          callback = function(args)
+            local current_buf = args.buf
+
+            -- 避免同一 buffer 因 window focus 等原因重啟 debounce。
+            if current_buf == last_active_buf then
+              return
+            end
+
+            last_active_buf = current_buf
+
+            buffer_switching = true
+            buffer_switch_generation =
+                buffer_switch_generation + 1
+
+            local current_generation =
+                buffer_switch_generation
+
+            vim.defer_fn(function()
+              -- 120ms 內又切了其他 buffer，
+              -- 此 timer 作廢。
+              if current_generation
+                  ~= buffer_switch_generation then
+                return
+              end
+
+              buffer_switching = false
+
+              -- 快速切換期間若有 modified / diagnostics 更新，
+              -- 現在統一清一次並 render 最後停下來的 buffer。
+              if pending_dynamic_invalidation then
+                pending_dynamic_invalidation = false
+                invalidate_all(true)
+              end
+            end, 120)
           end,
         })
 
-        -- 只有啟用 bufferline diagnostics 時才監聽。
+        -- modified 狀態。
+        --
+        -- 正常編輯時立即刷新；
+        -- 快速切 buffer 期間則延後。
+        vim.api.nvim_create_autocmd("BufModifiedSet", {
+          group = cache_group,
+          callback = function()
+            invalidate_dynamic_state()
+          end,
+        })
+
+        -- LSP diagnostics。
         if bufferline_options.diagnostics then
           vim.api.nvim_create_autocmd("DiagnosticChanged", {
             group = cache_group,
             callback = function()
-              invalidate_all(true)
+              invalidate_dynamic_state()
             end,
           })
         end
 
-        -- Bufferline hover 狀態會影響最終 render。
+        -- Bufferline hover 直接影響 UI，
+        -- 不適合延遲。
         vim.api.nvim_create_autocmd("User", {
           group = cache_group,
           pattern = {
@@ -167,8 +247,8 @@ return {
           end,
         })
 
-        -- resize 過程中不針對每個寬度重算。
-        -- 停止 resize 120ms 後才清空並正式 render 一次。
+        -- resize 期間沿用 frozen cache，
+        -- 最後一次 resize + 120ms 才完整 render。
         vim.api.nvim_create_autocmd({
           "VimResized",
           "WinResized",
@@ -192,12 +272,18 @@ return {
           end,
         })
 
-        -- Session manager 自訂載入事件。
+        -- Session manager 自訂事件。
         vim.api.nvim_create_autocmd("User", {
           group = cache_group,
           pattern = "SessionManagerLoadPre",
           callback = function()
             session_loading = true
+
+            -- 避免舊的 buffer-switch timer 在 session restore 後誤觸發。
+            buffer_switch_generation =
+                buffer_switch_generation + 1
+            buffer_switching = false
+            pending_dynamic_invalidation = false
           end,
         })
 
@@ -206,17 +292,24 @@ return {
           pattern = "SessionManagerLoadPost",
           callback = function()
             session_loading = false
+
+            last_active_buf =
+                vim.api.nvim_get_current_buf()
+
+            buffer_switching = false
+            pending_dynamic_invalidation = false
+
             invalidate_all(true)
           end,
         })
 
         _G.nvim_bufferline = function()
-          -- Session 載入中完全不呼叫原始 renderer。
+          -- Session 載入期間完全不跑 bufferline renderer。
           if session_loading then
             return frozen_cache or ""
           end
 
-          -- resize 期間沿用最近一次正確結果。
+          -- resize 期間沿用最後一份畫面。
           if resizing and frozen_cache ~= nil then
             return frozen_cache
           end
@@ -224,11 +317,15 @@ return {
           local key = make_cache_key()
           local cached = render_cache[key]
 
+          -- 即使正在快速切 buffer，
+          -- active-buffer cache 仍照常使用。
           if cached ~= nil then
             frozen_cache = cached
             return cached
           end
 
+          -- 第一次切到尚未建立 cache 的 active buffer：
+          -- 必須 render 一次，才能讓 active 高亮立即正確。
           local rendered = original()
 
           render_cache[key] = rendered
@@ -248,7 +345,7 @@ return {
           }
         )
 
-        -- 讓外層可以在 bufferline 內部狀態操作前清除 cache。
+        -- 讓外層可以在 bufferline 內部結構改變前清 cache。
         return invalidate_all
       end
 
@@ -261,12 +358,11 @@ return {
 
         options = bufferline_options,
 
-        -- 只交給 bufferline.setup 執行一次。
-        on_config_done = builtin_bufferline.on_config_done,
+        on_config_done =
+            builtin_bufferline.on_config_done,
       })
 
-      -- 必須在 bufferline.setup 後載入；
-      -- 此模組可能修改 bufferline/tabline 狀態。
+      -- 必須在 bufferline.setup 後載入。
       local ok_integrated, integrated_err =
           pcall(
             require,
@@ -313,9 +409,6 @@ return {
       end
 
       -- BufferLineMovePrev / BufferLineMoveNext
-      --
-      -- 必須先失效，再呼叫原始操作：
-      -- 原始 move() 內部會自行 refresh。
       if type(bufferline.move) == "function" then
         local original_move = bufferline.move
 
@@ -325,10 +418,7 @@ return {
         end
       end
 
-      -- BufferLineSortByExtension
-      -- BufferLineSortByDirectory
-      -- BufferLineSortByRelativeDirectory
-      -- BufferLineSortByTabs
+      -- BufferLineSortBy*
       if type(bufferline.sort_by) == "function" then
         local original_sort_by = bufferline.sort_by
 
@@ -338,10 +428,7 @@ return {
         end
       end
 
-      -- BufferLineTogglePin 與 group 操作。
-      --
-      -- 不同 bufferline 版本可能不直接暴露 bufferline.groups，
-      -- 所以同時嘗試使用先前 require 的 groups module。
+      -- BufferLineTogglePin / group action。
       local groups_module
 
       if type(bufferline.groups) == "table" then
