@@ -297,31 +297,68 @@ return {
         end
         local original_tabline_tabs = tabline.tabline_tabs
 
+        local jump_flash = nil
+
+        vim.api.nvim_set_hl(0, "TablineJumpFlash", {
+          bold = true,
+          reverse = true,
+        })
+
         _G.TablineJumpBack = function()
+          jump_flash = "back"
+          vim.cmd("redrawtabline")
+
           local key = vim.api.nvim_replace_termcodes(
             "<C-o>", true, false, true
           )
           vim.api.nvim_feedkeys(key, "n", false)
+
+          vim.defer_fn(function()
+            jump_flash = nil
+            vim.cmd("redrawtabline")
+          end, 100)
         end
 
         _G.TablineJumpForward = function()
+          jump_flash = "forward"
+          vim.cmd("redrawtabline")
+
           local key = vim.api.nvim_replace_termcodes(
             "<C-i>", true, false, true
           )
           vim.api.nvim_feedkeys(key, "n", false)
+
+          vim.defer_fn(function()
+            jump_flash = nil
+            vim.cmd("redrawtabline")
+          end, 100)
         end
 
         tabline.tabline_tabs = function(...)
           local tabs = original_tabline_tabs(...)
+
+          local back_hl =
+              jump_flash == "back"
+              and "%#TablineJumpFlash#"
+              or "%#TabLineFill#"
+
+          local forward_hl =
+              jump_flash == "forward"
+              and "%#TablineJumpFlash#"
+              or "%#TabLineFill#"
+
           local jumps = table.concat({
-            "%#TabLineFill#",
+            back_hl,
             "%@v:lua.TablineJumpBack@",
             "  ",
             "%X",
+            forward_hl,
             "%@v:lua.TablineJumpForward@",
             "  ",
             "%X",
+            "%#TabLineFill#",
           })
+
           return tabs .. jumps
         end
         vim.o.tabline =
