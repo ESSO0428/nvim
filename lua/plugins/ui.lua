@@ -298,40 +298,55 @@ return {
         local original_tabline_tabs = tabline.tabline_tabs
 
         local jump_flash = nil
+        local jump_flash_generation = 0
+        local redraw_pending = false
 
-        vim.api.nvim_set_hl(0, "TablineJumpFlash", {
-          bold = true,
-          reverse = true,
-        })
+        local function request_tabline_redraw()
+          if redraw_pending then
+            return
+          end
+
+          redraw_pending = true
+
+          vim.schedule(function()
+            redraw_pending = false
+            vim.cmd("redrawtabline")
+          end)
+        end
+
+        local function flash_jump(direction)
+          jump_flash_generation = jump_flash_generation + 1
+          local generation = jump_flash_generation
+
+          jump_flash = direction
+          request_tabline_redraw()
+
+          vim.defer_fn(function()
+            if generation ~= jump_flash_generation then
+              return
+            end
+
+            jump_flash = nil
+            request_tabline_redraw()
+          end, 100)
+        end
 
         _G.TablineJumpBack = function()
-          jump_flash = "back"
-          vim.cmd("redrawtabline")
+          flash_jump("back")
 
           local key = vim.api.nvim_replace_termcodes(
             "<C-o>", true, false, true
           )
           vim.api.nvim_feedkeys(key, "n", false)
-
-          vim.defer_fn(function()
-            jump_flash = nil
-            vim.cmd("redrawtabline")
-          end, 100)
         end
 
         _G.TablineJumpForward = function()
-          jump_flash = "forward"
-          vim.cmd("redrawtabline")
+          flash_jump("forward")
 
           local key = vim.api.nvim_replace_termcodes(
             "<C-i>", true, false, true
           )
           vim.api.nvim_feedkeys(key, "n", false)
-
-          vim.defer_fn(function()
-            jump_flash = nil
-            vim.cmd("redrawtabline")
-          end, 100)
         end
 
         tabline.tabline_tabs = function(...)
@@ -352,10 +367,12 @@ return {
             "%@v:lua.TablineJumpBack@",
             "  ",
             "%X",
+
             forward_hl,
             "%@v:lua.TablineJumpForward@",
             "  ",
             "%X",
+
             "%#TabLineFill#",
           })
 
