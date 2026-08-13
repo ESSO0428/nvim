@@ -295,7 +295,35 @@ return {
             vim.log.levels.WARN
           )
         end
+        local original_tabline_tabs = tabline.tabline_tabs
 
+        _G.TablineJumpBack = function()
+          local key = vim.api.nvim_replace_termcodes(
+            "<C-o>", true, false, true
+          )
+          vim.api.nvim_feedkeys(key, "n", false)
+        end
+
+        _G.TablineJumpForward = function()
+          local key = vim.api.nvim_replace_termcodes(
+            "<C-i>", true, false, true
+          )
+          vim.api.nvim_feedkeys(key, "n", false)
+        end
+
+        tabline.tabline_tabs = function(...)
+          local tabs = original_tabline_tabs(...)
+          local jumps = table.concat({
+            "%#TabLineFill#",
+            "%@v:lua.TablineJumpBack@",
+            "  ",
+            "%X",
+            "%@v:lua.TablineJumpForward@",
+            "  ",
+            "%X",
+          })
+          return tabs .. jumps
+        end
         vim.o.tabline =
             "%!v:lua.nvim_bufferline()"
             .. " .. v:lua.require'tabline'.tabline_tabs()"
