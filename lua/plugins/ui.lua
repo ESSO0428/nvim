@@ -25,11 +25,9 @@ return {
         return
       end
 
-      local builtin_bufferline =
-          vim.deepcopy(Nvim.builtin.bufferline or {})
+      local builtin_bufferline = vim.deepcopy(Nvim.builtin.bufferline or {})
 
-      local bufferline_options =
-          vim.deepcopy(builtin_bufferline.options or {})
+      local bufferline_options = vim.deepcopy(builtin_bufferline.options or {})
 
       -- 加入預設 ungrouped group。
       local ok_groups, groups = pcall(require, "bufferline.groups")
@@ -38,9 +36,9 @@ return {
           and bufferline_options.groups
           and vim.islist(bufferline_options.groups.items) then
         local has_ungrouped =
-            vim.iter(bufferline_options.groups.items):any(function(item)
-              return item.name == "ungrouped"
-            end)
+        vim.iter(bufferline_options.groups.items):any(function(item)
+          return item.name == "ungrouped"
+        end)
 
         if not has_ungrouped then
           local ungrouped = groups.builtin.ungrouped:with({
@@ -80,7 +78,7 @@ return {
 
         -- 處理 bufferline 在 session 載入途中才 lazy-load 的情況。
         local session_loading =
-            vim.g.session_loading == true
+        vim.g.session_loading == true
 
         local cache_group = vim.api.nvim_create_augroup(
           "BufferlineRenderCache",
@@ -178,8 +176,7 @@ return {
             resizing = true
             resize_generation = resize_generation + 1
 
-            local current_generation =
-                resize_generation
+            local current_generation = resize_generation
 
             vim.defer_fn(function()
               if current_generation ~= resize_generation then
@@ -257,7 +254,7 @@ return {
 
       bufferline.setup({
         highlights =
-            vim.deepcopy(builtin_bufferline.highlights or {}),
+        vim.deepcopy(builtin_bufferline.highlights or {}),
 
         options = bufferline_options,
 
@@ -268,10 +265,10 @@ return {
       -- 必須在 bufferline.setup 後載入；
       -- 此模組可能修改 bufferline/tabline 狀態。
       local ok_integrated, integrated_err =
-          pcall(
-            require,
-            "user.integrated.bufferline.nvimTabline"
-          )
+      pcall(
+        require,
+        "user.integrated.bufferline.nvimTabline"
+      )
 
       if not ok_integrated then
         vim.notify(
@@ -282,11 +279,11 @@ return {
       end
 
       local ok_tabline, tabline =
-          pcall(require, "tabline")
+      pcall(require, "tabline")
 
       if ok_tabline then
         local ok_session, session_err =
-            pcall(tabline.on_session_load_post)
+        pcall(tabline.on_session_load_post)
 
         if not ok_session then
           vim.notify(
@@ -295,91 +292,9 @@ return {
             vim.log.levels.WARN
           )
         end
-        local original_tabline_tabs = tabline.tabline_tabs
 
-        local jump_flash = nil
-        local jump_flash_generation = 0
-        local redraw_pending = false
-
-        local function request_tabline_redraw()
-          if redraw_pending then
-            return
-          end
-
-          redraw_pending = true
-
-          vim.schedule(function()
-            redraw_pending = false
-            vim.cmd("redrawtabline")
-          end)
-        end
-
-        local function flash_jump(direction)
-          jump_flash_generation = jump_flash_generation + 1
-          local generation = jump_flash_generation
-
-          jump_flash = direction
-          request_tabline_redraw()
-
-          vim.defer_fn(function()
-            if generation ~= jump_flash_generation then
-              return
-            end
-
-            jump_flash = nil
-            request_tabline_redraw()
-          end, 100)
-        end
-
-        _G.TablineJumpBack = function()
-          flash_jump("back")
-
-          local key = vim.api.nvim_replace_termcodes(
-            "<C-o>", true, false, true
-          )
-          vim.api.nvim_feedkeys(key, "n", false)
-        end
-
-        _G.TablineJumpForward = function()
-          flash_jump("forward")
-
-          local key = vim.api.nvim_replace_termcodes(
-            "<C-i>", true, false, true
-          )
-          vim.api.nvim_feedkeys(key, "n", false)
-        end
-
-        tabline.tabline_tabs = function(...)
-          local tabs = original_tabline_tabs(...)
-
-          local back_hl =
-              jump_flash == "back"
-              and "%#TablineJumpFlash#"
-              or "%#TabLineFill#"
-
-          local forward_hl =
-              jump_flash == "forward"
-              and "%#TablineJumpFlash#"
-              or "%#TabLineFill#"
-
-          local jumps = table.concat({
-            back_hl,
-            "%@v:lua.TablineJumpBack@",
-            "  ",
-            "%X",
-
-            forward_hl,
-            "%@v:lua.TablineJumpForward@",
-            "  ",
-            "%X",
-
-            "%#TabLineFill#",
-          })
-
-          return tabs .. jumps
-        end
         vim.o.tabline =
-            "%!v:lua.nvim_bufferline()"
+        "%!v:lua.nvim_bufferline()"
             .. " .. v:lua.require'tabline'.tabline_tabs()"
       else
         vim.o.tabline =
@@ -388,7 +303,7 @@ return {
 
       -- 必須在所有可能修改 _G.nvim_bufferline 的初始化之後安裝。
       local invalidate_bufferline_cache =
-          install_bufferline_render_cache()
+      install_bufferline_render_cache()
 
       if type(invalidate_bufferline_cache) ~= "function" then
         return
@@ -435,7 +350,7 @@ return {
       if groups_module then
         if type(groups_module.toggle_pin) == "function" then
           local original_toggle_pin =
-              groups_module.toggle_pin
+          groups_module.toggle_pin
 
           groups_module.toggle_pin = function(...)
             invalidate_bufferline_cache(false)
@@ -445,7 +360,7 @@ return {
 
         if type(groups_module.action) == "function" then
           local original_group_action =
-              groups_module.action
+          groups_module.action
 
           groups_module.action = function(...)
             invalidate_bufferline_cache(false)
@@ -721,7 +636,7 @@ return {
             { 'vim.api.nvim_call_function("getcwd", {0})' },
             { "encoding" },
             { "fileformat" },
-            { "filetype",                                 icon_only = false },
+            { "filetype", icon_only = false },
             components.lsp,
             {
               "pid",

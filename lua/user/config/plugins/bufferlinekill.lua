@@ -78,6 +78,7 @@ function M.setup()
 
   local function BufferLineKill(opts)
     opts = opts or {}
+
     local force = opts.force or false
     local bo = vim.bo
     local api = vim.api
@@ -85,18 +86,32 @@ function M.setup()
     local fn = vim.fn
     local choice
 
-    local bufnr = api.nvim_get_current_buf()
+    local bufnr = opts.bufnr or api.nvim_get_current_buf()
+
+    if not api.nvim_buf_is_valid(bufnr) then
+      return
+    end
+
+    local other_buffer = bufnr ~= api.nvim_get_current_buf()
     local bufname = api.nvim_buf_get_name(bufnr)
 
     if api.nvim_get_option_value("buftype", { buf = bufnr }) == "terminal" then
       if force ~= true then
-        vim.cmd("BufferKill")
+        if other_buffer then
+          require("user.core.bufferline").buf_kill("bd", bufnr, true)
+        else
+          require("user.core.bufferline").buf_kill "bd"
+        end
       else
-        require("user.core.bufferline").buf_kill("bd", 0, true)
+        require("user.core.bufferline").buf_kill("bd", bufnr, true)
       end
     else
       if force ~= true and bo[bufnr].modified then
-        choice = fn.confirm(fmt([[Save changes to "%s"?]], bufname), "&Yes\n&No\n&Cancel")
+        choice = fn.confirm(
+          fmt([[Save changes to "%s"?]], bufname),
+          "&Yes\n&No\n&Cancel"
+        )
+
         if choice == 1 then
           api.nvim_buf_call(bufnr, function()
             vim.cmd("w")
@@ -110,21 +125,38 @@ function M.setup()
         return api.nvim_buf_is_valid(buf) and bo[buf].buflisted
       end, api.nvim_list_bufs())
 
-      if #buffers == 1 then
-        require("user.core.bufferline").buf_kill("bd", 0, true)
+      if #buffers == 1 or other_buffer then
+        require("user.core.bufferline").buf_kill("bd", bufnr, true)
       else
-        require("close_buffers").delete({ type = "this", force = true })
+        require("close_buffers").delete({
+          type = "this",
+          force = true,
+        })
       end
     end
   end
 
-  vim.api.nvim_create_user_command("BufferLineKill", function()
-    BufferLineKill({ force = false })
-  end, {})
+  vim.api.nvim_create_user_command("BufferLineKill", function(opts)
+    local bufnr = tonumber(opts.args)
 
-  vim.api.nvim_create_user_command("ForceBufferLineKill", function()
-    BufferLineKill({ force = true })
-  end, {})
+    BufferLineKill({
+      force = false,
+      bufnr = bufnr,
+    })
+  end, {
+    nargs = "?",
+  })
+
+  vim.api.nvim_create_user_command("ForceBufferLineKill", function(opts)
+    local bufnr = tonumber(opts.args)
+
+    BufferLineKill({
+      force = true,
+      bufnr = bufnr,
+    })
+  end, {
+    nargs = "?",
+  })
 end
 
 return M

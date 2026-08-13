@@ -44,6 +44,40 @@ local function diagnostics_indicator(num, _, diagnostics, _)
   return #result > 0 and result or ""
 end
 
+local function jumplist_state()
+  local jumps, idx = unpack(vim.fn.getjumplist())
+
+  return {
+    back = idx > 1,
+    forward = idx < #jumps,
+  }
+end
+
+-- IDE-style jumplist Back / Forward
+_G.BufferlineJumpBack = function(...)
+  local keys =
+  vim.api.nvim_replace_termcodes(
+    "<C-o>",
+    true,
+    false,
+    true
+  )
+
+  vim.api.nvim_feedkeys(keys, "n", false)
+end
+
+_G.BufferlineJumpForward = function(...)
+  local keys =
+  vim.api.nvim_replace_termcodes(
+    "<C-i>",
+    true,
+    false,
+    true
+  )
+
+  vim.api.nvim_feedkeys(keys, "n", false)
+end
+
 Nvim.builtin.bufferline.highlights = vim.tbl_deep_extend("force", Nvim.builtin.bufferline.highlights or {}, {
   background = {
     italic = true,
@@ -64,9 +98,40 @@ Nvim.builtin.bufferline.options = vim.tbl_deep_extend("force", {
     items = {},
     options = { toggle_hidden_on_enter = true },
   },
+  custom_areas = {
+    left = function()
+      local state = jumplist_state()
+
+      return {
+        {
+          text =
+          "%@v:lua.BufferlineJumpBack@"
+              .. "  "
+              .. "%X",
+          highlight = state.back
+              and "BufferLineBufferVisible"
+              or "BufferLineFill",
+        },
+        {
+          text =
+          "%@v:lua.BufferlineJumpForward@"
+              .. "  "
+              .. "%X",
+          highlight = state.forward
+              and "BufferLineBufferVisible"
+              or "BufferLineFill",
+        },
+        {
+          text = " ",
+          highlight = "BufferLineFill",
+        },
+      }
+    end,
+  },
   mode = "buffers",
   numbers = "none",
-  close_command = "bdelete! %d",
+  -- close_command = "bdelete! %d",
+  close_command = "ForceBufferLineKill %d",
   right_mouse_command = "vert sbuffer %d",
   left_mouse_command = "buffer %d",
   middle_mouse_command = nil,
