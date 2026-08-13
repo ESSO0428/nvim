@@ -158,115 +158,137 @@ Nvim.which_key = {
   { "<leader>U", group = "Config / Lazy" },
   { "<leader>w", group = "Workspace" },
 
-  { "<leader>q", "<cmd>confirm q<CR>", desc = "Quit" },
-  { "<leader>sq", function() Nvim.select_current_nvim_jupyter_kernel_in_current_buffer() end,
-    desc = "Check Jupyter Kernel" },
-  { "<leader>E", "<cmd>Neotree toggle remote<cr>", desc = "Neotree Remote" },
+  { "<leader>q", "<cmd>confirm q<CR>",    desc = "Quit" },
+  {
+    "<leader>sq",
+    function() Nvim.select_current_nvim_jupyter_kernel_in_current_buffer() end,
+    desc = "Check Jupyter Kernel"
+  },
+  { "<leader>E",  "<cmd>Neotree toggle remote<cr>",                   desc = "Neotree Remote" },
 
-  { "<leader>UF", find_lazy_pack_files, desc = "Find Lazy pack files" },
-  { "<leader>UG", grep_lazy_pack_files, desc = "Grep Lazy pack files" },
-  { "<leader>Uf", find_config_files, desc = "Find Neovim files" },
-  { "<leader>Ug", grep_config_files, desc = "Grep Neovim files" },
+  { "<leader>UF", find_lazy_pack_files,                               desc = "Find Lazy pack files" },
+  { "<leader>UG", grep_lazy_pack_files,                               desc = "Grep Lazy pack files" },
+  { "<leader>Uf", find_config_files,                                  desc = "Find Neovim files" },
+  { "<leader>Ug", grep_config_files,                                  desc = "Grep Neovim files" },
 
-  { "<leader>bj", "<cmd>BufferLinePick<cr>", desc = "Jump" },
-  { "<leader>bf", "<cmd>Telescope buffers previewer=false<cr>", desc = "Find" },
-  { "<leader>bb", "<cmd>BufferLineCyclePrev<cr>", desc = "Previous" },
-  { "<leader>bn", "<cmd>BufferLineCycleNext<cr>", desc = "Next" },
-  { "<leader>bW", "<cmd>noautocmd w<cr>", desc = "Save without formatting (noautocmd)" },
-  { "<leader>be", "<cmd>BufferLinePickClose<cr>", desc = "Pick which buffer to close" },
-  { "<leader>bi", "<cmd>BufferLinePickClose<cr>", desc = "Pick which buffer to close" },
-  { "<leader>bh", "<cmd>BufferLineCloseLeft<cr>", desc = "Close all to the left" },
-  { "<leader>bl", "<cmd>BufferLineCloseRight<cr>", desc = "Close all to the right" },
-  { "<leader>bD", "<cmd>BufferLineSortByDirectory<cr>", desc = "Sort by directory" },
-  { "<leader>bL", "<cmd>BufferLineSortByExtension<cr>", desc = "Sort by language" },
-  { "<leader>bk", "<cmd>BufferLineSortByRelativeDirectory<cr>", desc = "Sort by relative directory" },
-  { "<leader>bc", "<cmd>BDelete hidden<cr>", desc = "close hidden buffer (not in windws)" },
+  { "<leader>bj", "<cmd>BufferLinePick<cr>",                          desc = "Jump" },
+  { "<leader>bf", "<cmd>Telescope buffers previewer=false<cr>",       desc = "Find" },
+  { "<leader>bb", "<cmd>BufferLineCyclePrev<cr>",                     desc = "Previous" },
+  { "<leader>bn", "<cmd>BufferLineCycleNext<cr>",                     desc = "Next" },
+  { "<leader>bW", "<cmd>noautocmd w<cr>",                             desc = "Save without formatting (noautocmd)" },
+  { "<leader>be", "<cmd>BufferLinePickClose<cr>",                     desc = "Pick which buffer to close" },
+  { "<leader>bi", "<cmd>BufferLinePickClose<cr>",                     desc = "Pick which buffer to close" },
+  { "<leader>bh", "<cmd>BufferLineCloseLeft<cr>",                     desc = "Close all to the left" },
+  { "<leader>bl", "<cmd>BufferLineCloseRight<cr>",                    desc = "Close all to the right" },
+  { "<leader>bD", "<cmd>BufferLineSortByDirectory<cr>",               desc = "Sort by directory" },
+  { "<leader>bL", "<cmd>BufferLineSortByExtension<cr>",               desc = "Sort by language" },
+  { "<leader>bk", "<cmd>BufferLineSortByRelativeDirectory<cr>",       desc = "Sort by relative directory" },
+  { "<leader>bc", "<cmd>BDelete hidden<cr>",                          desc = "close hidden buffer (not in windws)" },
 
 
-  { "<leader>ta", ":Limelight<cr>", desc = "Limelight" },
-  { "<leader>tA", ":Limelight!<cr>", desc = "Limelight All" },
+  { "<leader>ta", ":Limelight<cr>",                                   desc = "Limelight" },
+  { "<leader>tA", ":Limelight!<cr>",                                  desc = "Limelight All" },
   { "<leader>td", "<cmd>Trouble diagnostics toggle filter.buf=0<cr>", desc = "Trouble Buffer Diagnostics" },
-  { "<leader>tf", "<cmd>Trouble lsp_definitions<cr>", desc = "Trouble Definitions" },
-  { "<leader>tl", "<cmd>Trouble loclist<cr>", desc = "Trouble Location List" },
-  { "<leader>tq", "<cmd>Trouble quickfix<cr>", desc = "Trouble Quickfix" },
-  { "<leader>tr", "<cmd>Trouble lsp_references<cr>", desc = "Trouble References" },
-  { "<leader>tw", "<cmd>Trouble diagnostics toggle<cr>", desc = "Trouble Workspace Diagnostics" },
+  { "<leader>tf", "<cmd>Trouble lsp_definitions<cr>",                 desc = "Trouble Definitions" },
+  { "<leader>tl", "<cmd>Trouble loclist<cr>",                         desc = "Trouble Location List" },
+  { "<leader>tq", "<cmd>Trouble quickfix<cr>",                        desc = "Trouble Quickfix" },
+  { "<leader>tr", "<cmd>Trouble lsp_references<cr>",                  desc = "Trouble References" },
+  { "<leader>tw", "<cmd>Trouble diagnostics toggle<cr>",              desc = "Trouble Workspace Diagnostics" },
 
   {
     mode = { "n", "v" },
     { "<leader>ua", "<cmd>lua require('actions-preview').code_actions()<cr>", desc = "Code Action" },
   },
-  { "<leader>ur", "<cmd>lua vim.lsp.buf.rename()<cr>", desc = "Rename" },
+  { "<leader>ur", "<cmd>lua vim.lsp.buf.rename()<cr>",               desc = "Rename" },
   { "<leader>uA", "<cmd>lua require('inlayhint-filler').fill()<cr>", desc = "Inlayhint Filler" },
-  { "<leader>uh", function() vim.lsp.inlay_hint.enable(not vim.lsp.inlay_hint.is_enabled()) end,
-    desc = "Toggle Inlay Hints" },
-  { "<leader>ut", "<cmd>TSContext toggle<cr>", desc = "Toggle Treesitter Context" },
-  { "<leader>uo", "<cmd>Neogen<cr>", desc = "Document Generate" },
+  {
+    "<leader>uh",
+    function() vim.lsp.inlay_hint.enable(not vim.lsp.inlay_hint.is_enabled()) end,
+    desc = "Toggle Inlay Hints"
+  },
+  { "<leader>ut",  "<cmd>TSContext toggle<cr>",                            desc = "Toggle Treesitter Context" },
+  { "<leader>uo",  "<cmd>Neogen<cr>",                                      desc = "Document Generate" },
   { "<leader>uka", function() require("user.copilot").quickchat(true) end, desc = "CopilotChat Quick Chat" },
-  { "<leader>uka", function() require("user.copilot").quickchat_visual(true) end, mode = "v",
-    desc = "CopilotChat Quick Chat" },
-  { "<leader>uki", function() require("user.copilot").quickchat(false) end, desc = "CopilotChat Quick Chat Panel" },
-  { "<leader>uki", function() require("user.copilot").quickchat_visual(false) end, mode = "v",
-    desc = "CopilotChat Quick Chat Panel" },
-  { "<leader>ukk", function() require("user.copilot").prompt_action() end, desc = "CopilotChat Prompt Action" },
-  { "<leader>ukk", function() require("user.copilot").prompt_action() end, mode = "v", desc = "CopilotChat Prompt Action" },
-  { "<leader>ukw", function() require("user.copilot").no_context_chat() end, desc = "CopilotChat No Context Chat" },
-  { "<leader>ud", "<cmd>Telescope diagnostics bufnr=0 theme=get_ivy<cr>", desc = "Buffer Diagnostics" },
-  { "<leader>uw", "<cmd>Telescope diagnostics<cr>", desc = "Diagnostics" },
-  { "<leader>uf", "<cmd>lua require('conform').format { async = true, lsp_format = 'fallback' }<cr>", desc = "Format" },
-  { "<leader>ui", "<cmd>LspInfo<cr>", desc = "Info" },
-  { "<leader>uI", "<cmd>Mason<cr>", desc = "Mason Info" },
-  { "<leader>ul", "<cmd>lua vim.lsp.codelens.run()<cr>", desc = "CodeLens Action" },
-  { "<leader>uq", "<cmd>lua vim.diagnostic.setloclist()<cr>", desc = "Quickfix" },
-  { "<leader>us", "<cmd>Telescope lsp_document_symbols<cr>", desc = "Document Symbols" },
-  { "<leader>uS",
+  {
+    "<leader>uka",
+    function() require("user.copilot").quickchat_visual(true) end,
+    mode = "v",
+    desc = "CopilotChat Quick Chat"
+  },
+  { "<leader>uki", function() require("user.copilot").quickchat(false) end,                            desc = "CopilotChat Quick Chat Panel" },
+  {
+    "<leader>uki",
+    function() require("user.copilot").quickchat_visual(false) end,
+    mode = "v",
+    desc = "CopilotChat Quick Chat Panel"
+  },
+  { "<leader>ukk", function() require("user.copilot").prompt_action() end,                             desc = "CopilotChat Prompt Action" },
+  { "<leader>ukk", function() require("user.copilot").prompt_action() end,                             mode = "v",                           desc = "CopilotChat Prompt Action" },
+  { "<leader>ukw", function() require("user.copilot").no_context_chat() end,                           desc = "CopilotChat No Context Chat" },
+  { "<leader>ud",  "<cmd>Telescope diagnostics bufnr=0 theme=get_ivy<cr>",                             desc = "Buffer Diagnostics" },
+  { "<leader>uw",  "<cmd>Telescope diagnostics<cr>",                                                   desc = "Diagnostics" },
+  { "<leader>uf",  "<cmd>lua require('conform').format { async = true, lsp_format = 'fallback' }<cr>", desc = "Format" },
+  { "<leader>ui",  "<cmd>LspInfo<cr>",                                                                 desc = "Info" },
+  { "<leader>uI",  "<cmd>Mason<cr>",                                                                   desc = "Mason Info" },
+  { "<leader>ul",  "<cmd>lua vim.lsp.codelens.run()<cr>",                                              desc = "CodeLens Action" },
+  { "<leader>uq",  "<cmd>lua vim.diagnostic.setloclist()<cr>",                                         desc = "Quickfix" },
+  { "<leader>us",  "<cmd>Telescope lsp_document_symbols<cr>",                                          desc = "Document Symbols" },
+  {
+    "<leader>uS",
     "<cmd>Telescope lsp_dynamic_workspace_symbols<cr>",
     desc = "Workspace Symbols",
   },
-  { "<leader>ue", "<cmd>Telescope quickfix<cr>", desc = "Telescope Quickfix" },
+  { "<leader>ue", "<cmd>Telescope quickfix<cr>",   desc = "Telescope Quickfix" },
 
   { "<leader>sf", "<cmd>Telescope find_files<cr>", desc = "Find Files" },
-  { "<leader>sg", "<cmd>Telescope live_grep<cr>", desc = "Live Grep" },
-  { "<leader>s.", function()
-    local builtin = require("telescope.builtin")
-    local opts = { previewer = true }
+  { "<leader>sg", "<cmd>Telescope live_grep<cr>",  desc = "Live Grep" },
+  {
+    "<leader>s.",
+    function()
+      local builtin = require("telescope.builtin")
+      local opts = { previewer = true }
 
-    local ok = pcall(builtin.git_files, opts)
-    if not ok then
-      builtin.find_files(opts)
-    end
-  end, desc = "Project Files" },
-  { "<leader>sa", function() require("swenv.api").pick_venv() end, desc = "Select Python Env" },
-  { "<leader>sb", function() require("telescope").extensions.dap.list_breakpoints() end, desc = "Breakpoints" },
-  { "<leader>sd", "<cmd>CderOpen<cr>", desc = "Change Directory" },
+      local ok = pcall(builtin.git_files, opts)
+      if not ok then
+        builtin.find_files(opts)
+      end
+    end,
+    desc = "Project Files"
+  },
+  { "<leader>sa", function() require("swenv.api").pick_venv() end,                          desc = "Select Python Env" },
+  { "<leader>sb", function() require("telescope").extensions.dap.list_breakpoints() end,    desc = "Breakpoints" },
+  { "<leader>sd", "<cmd>CderOpen<cr>",                                                      desc = "Change Directory" },
   { "<leader>sm", function() require("telescope").extensions.media_files.media_files() end, desc = "Media" },
-  { "<leader>sF", "<cmd>Telescope file_browser<cr>", desc = "File Browser" },
-  { "<leader>sG", "<cmd>Telescope live_grep_args<cr>", desc = "Live Grep Args" },
-  { "<leader>si", "<cmd>lua telescope_interestingwords_selected(false)<cr>", desc = "Search Interesting Words" },
-  { "<leader>sk", "<cmd>Telescope keymaps<cr>", desc = "Keymaps" },
-  { "<leader>so", "<cmd>Telescope oldfiles<cr>", desc = "Recent Files" },
-  { "<leader>sr", "<cmd>Telescope file_browser path=%:p:h initial_mode=normal grouped=true<cr>",
-    desc = "File Browser Here" },
-  { "<leader>ss", "<cmd>Telescope buffers<cr>", desc = "Buffers" },
-  { "<leader>su", "<cmd>Telescope telescope-tabs list_tabs<cr>", desc = "Tabs" },
-  { "<leader>sw", "<cmd>ListTabWindows<cr>", desc = "List Windows" },
-  { "<leader>sy", "<cmd>Telescope neoclip theme=get_ivy<cr>", desc = "Yank History" },
-  { "<leader>s`", "<cmd>Telescope marks<cr>", desc = "Marks" },
+  { "<leader>sF", "<cmd>Telescope file_browser<cr>",                                        desc = "File Browser" },
+  { "<leader>sG", "<cmd>Telescope live_grep_args<cr>",                                      desc = "Live Grep Args" },
+  { "<leader>si", "<cmd>lua telescope_interestingwords_selected(false)<cr>",                desc = "Search Interesting Words" },
+  { "<leader>sk", "<cmd>Telescope keymaps<cr>",                                             desc = "Keymaps" },
+  { "<leader>so", "<cmd>Telescope oldfiles<cr>",                                            desc = "Recent Files" },
+  {
+    "<leader>sr",
+    "<cmd>Telescope file_browser path=%:p:h initial_mode=normal grouped=true<cr>",
+    desc = "File Browser Here"
+  },
+  { "<leader>ss", "<cmd>Telescope buffers<cr>",                                                desc = "Buffers" },
+  { "<leader>su", "<cmd>Telescope telescope-tabs list_tabs<cr>",                               desc = "Tabs" },
+  { "<leader>sw", "<cmd>ListTabWindows<cr>",                                                   desc = "List Windows" },
+  { "<leader>sy", "<cmd>Telescope neoclip theme=get_ivy<cr>",                                  desc = "Yank History" },
+  { "<leader>s`", "<cmd>Telescope marks<cr>",                                                  desc = "Marks" },
   { "<leader>s'", "<cmd>execute 'Telescope find_files default_text=' . expand('<cfile>')<cr>", desc = "File Under Cursor" },
-  { "<leader>sc", "<cmd>Telescope command_history<cr>", desc = "Commands History" },
-  { "<leader>sf", "<cmd>Telescope find_files<cr>", desc = "Find File" },
-  { "<leader>sh", "<cmd>Telescope help_tags<cr>", desc = "Find Help" },
-  { "<leader>sH", "<cmd>Telescope highlights<cr>", desc = "Find highlight groups" },
-  { "<leader>sM", "<cmd>Telescope man_pages<cr>", desc = "Man Pages" },
-  { "<leader>so", "<cmd>Telescope oldfiles<cr>", desc = "Open Recent File" },
-  { "<leader>sR", "<cmd>Telescope registers<cr>", desc = "Registers" },
-  { "<leader>sg", "<cmd>Telescope live_grep<cr>", desc = "Text" },
-  { "<leader>sk", "<cmd>Telescope keymaps<cr>", desc = "Keymaps" },
-  { "<leader>sC", "<cmd>Telescope commands<cr>", desc = "Commands" },
+  { "<leader>sc", "<cmd>Telescope command_history<cr>",                                        desc = "Commands History" },
+  { "<leader>sf", "<cmd>Telescope find_files<cr>",                                             desc = "Find File" },
+  { "<leader>sh", "<cmd>Telescope help_tags<cr>",                                              desc = "Find Help" },
+  { "<leader>sH", "<cmd>Telescope highlights<cr>",                                             desc = "Find highlight groups" },
+  { "<leader>sM", "<cmd>Telescope man_pages<cr>",                                              desc = "Man Pages" },
+  { "<leader>so", "<cmd>Telescope oldfiles<cr>",                                               desc = "Open Recent File" },
+  { "<leader>sR", "<cmd>Telescope registers<cr>",                                              desc = "Registers" },
+  { "<leader>sg", "<cmd>Telescope live_grep<cr>",                                              desc = "Text" },
+  { "<leader>sk", "<cmd>Telescope keymaps<cr>",                                                desc = "Keymaps" },
+  { "<leader>sC", "<cmd>Telescope commands<cr>",                                               desc = "Commands" },
   -- { "<leader>sl", "<cmd>Telescope resume<cr>", desc = "Resume last search" },
   -- { "<leader>sp", "<cmd>lua require('telescope.builtin').colorscheme({enable_preview = true})<cr>", desc = "Colorscheme with Preview", }
 
-  { "<leader>d;", function() require("telescope").extensions.dap.commands() end, desc = "DAP Commands" },
+  { "<leader>d;", function() require("telescope").extensions.dap.commands() end,               desc = "DAP Commands" },
   {
     "<leader>dL",
     function()
@@ -278,7 +300,20 @@ Nvim.which_key = {
     end,
     desc = "Toggle UI Auto-Open"
   },
-  { "<leader>d`", function() require("dap").restart() end, desc = "DAP Restart" },
+  { "<leader>d`", function() require("dap").restart() end,         desc = "DAP Restart" },
+  { "<leader>dt", "<cmd>lua require'dap'.toggle_breakpoint()<cr>", desc = "Toggle Breakpoint" },
+  { "<leader>db", "<cmd>lua require'dap'.step_back()<cr>",         desc = "Step Back" },
+  { "<leader>dc", "<cmd>lua require'dap'.continue()<cr>",          desc = "Continue" },
+  { "<leader>dC", "<cmd>lua require'dap'.run_to_cursor()<cr>",     desc = "Run To Cursor" },
+  { "<leader>dd", "<cmd>lua require'dap'.disconnect()<cr>",        desc = "Disconnect" },
+  { "<leader>dg", "<cmd>lua require'dap'.session()<cr>",           desc = "Get Session" },
+  { "<leader>di", "<cmd>lua require'dap'.step_into()<cr>",         desc = "Step Into" },
+  { "<leader>do", "<cmd>lua require'dap'.step_over()<cr>",         desc = "Step Over" },
+  { "<leader>du", "<cmd>lua require'dap'.step_out()<cr>",          desc = "Step Out" },
+  { "<leader>dp", "<cmd>lua require'dap'.pause()<cr>",             desc = "Pause" },
+  { "<leader>dr", "<cmd>lua require'dap'.repl.toggle()<cr>",       desc = "Toggle Repl" },
+  { "<leader>ds", "<cmd>lua require'dap'.continue()<cr>",          desc = "Start" },
+  { "<leader>dq", "<cmd>lua require'dap'.close()<cr>",             desc = "Quit" },
   {
     "<leader>dU",
     function()
@@ -291,71 +326,82 @@ Nvim.which_key = {
     desc = "DAP UI Toggle"
   },
   { "<leader>d\\", "<cmd>lua require('persistent-breakpoints.api').clear_all_breakpoints()<cr>" },
-  { "<leader>dfW", ":diffoff!<cr>", desc = "Diff Off All" },
-  { "<leader>dlc", function()
-    require("persistent-breakpoints.api").set_breakpoint(
-      vim.fn.input("Breakpoint condition: "),
-      vim.fn.input("Hit condition: "),
-      nil
-    )
-  end, desc = "Conditional Breakpoint" },
-  { "<leader>dle", "<cmd>DAPEditBreakpoint<cr>", desc = "Edit Breakpoint" },
-  { "<leader>dll", function()
-    require("persistent-breakpoints.api").set_breakpoint(
-      vim.fn.input("Breakpoint condition: "),
-      vim.fn.input("Hit condition: "),
-      vim.fn.input("Log point message: ")
-    )
-  end, desc = "Conditional Logpoint" },
-  { "<leader>d\\", function() require("persistent-breakpoints.api").clear_all_breakpoints() end,
-    desc = "Clear All Breakpoints" },
-  { "<leader>dfe", ":windo set noscrollbind<cr>", desc = "Disable Scrollbind In All Windows" },
-  { "<leader>dfs", ":set scrollbind!<cr>", desc = "Toggle Scrollbind" },
-  { "<leader>dft", ":diffthis<cr>", desc = "Diff This" },
-  { "<leader>dfw", ":diffoff<cr>", desc = "Diff Off" },
+  { "<leader>dfW", ":diffoff!<cr>",                                                             desc = "Diff Off All" },
+  {
+    "<leader>dlc",
+    function()
+      require("persistent-breakpoints.api").set_breakpoint(
+        vim.fn.input("Breakpoint condition: "),
+        vim.fn.input("Hit condition: "),
+        nil
+      )
+    end,
+    desc = "Conditional Breakpoint"
+  },
+  { "<leader>dle", "<cmd>DAPEditBreakpoint<cr>",                                                     desc = "Edit Breakpoint" },
+  {
+    "<leader>dll",
+    function()
+      require("persistent-breakpoints.api").set_breakpoint(
+        vim.fn.input("Breakpoint condition: "),
+        vim.fn.input("Hit condition: "),
+        vim.fn.input("Log point message: ")
+      )
+    end,
+    desc = "Conditional Logpoint"
+  },
+  {
+    "<leader>d\\",
+    function() require("persistent-breakpoints.api").clear_all_breakpoints() end,
+    desc = "Clear All Breakpoints"
+  },
+  { "<leader>dfe", ":windo set noscrollbind<cr>",                                                    desc = "Disable Scrollbind In All Windows" },
+  { "<leader>dfs", ":set scrollbind!<cr>",                                                           desc = "Toggle Scrollbind" },
+  { "<leader>dft", ":diffthis<cr>",                                                                  desc = "Diff This" },
+  { "<leader>dfw", ":diffoff<cr>",                                                                   desc = "Diff Off" },
 
-  { "<leader>gD", "<cmd>DiffviewFileHistory %<cr>", desc = "Diffview History (Current File)" },
-  { "<leader>gI", "<cmd>Gitsigns toggle_current_line_blame<cr>", desc = "Toggle Line Blame" },
-  { "<leader>gm", "<cmd>Flogsplit<cr>", desc = "Flogsplit" },
-  { "<leader>gv", "<cmd>DiffviewFileHistory<cr>", desc = "Diffview History" },
-  { "<leader>gj", "<cmd>Floggit blame<cr>", desc = "Floggit blame" },
-  { "<leader>gg", lazygit_toggle, desc = "Lazygit" },
-  { "<leader>gi", "<cmd>lua require 'gitsigns'.nav_hunk('prev', {navigation_message = false})<cr>", desc = "Prev Hunk" },
-  { "<leader>gk", "<cmd>lua require 'gitsigns'.nav_hunk('next', {navigation_message = false})<cr>", desc = "Next Hunk" },
-  { "<leader>gl", "<cmd>lua require 'gitsigns'.blame_line()<cr>", desc = "Blame" },
-  { "<leader>gL", "<cmd>lua require 'gitsigns'.blame_line({full=true})<cr>", desc = "Blame Line (full)" },
-  { "<leader>gp", "<cmd>lua require 'gitsigns'.preview_hunk()<cr>", desc = "Preview Hunk" },
+  { "<leader>gD",  "<cmd>DiffviewFileHistory %<cr>",                                                 desc = "Diffview History (Current File)" },
+  { "<leader>gI",  "<cmd>Gitsigns toggle_current_line_blame<cr>",                                    desc = "Toggle Line Blame" },
+  { "<leader>gm",  "<cmd>Flogsplit<cr>",                                                             desc = "Flogsplit" },
+  { "<leader>gv",  "<cmd>DiffviewFileHistory<cr>",                                                   desc = "Diffview History" },
+  { "<leader>gj",  "<cmd>Floggit blame<cr>",                                                         desc = "Floggit blame" },
+  { "<leader>gg",  lazygit_toggle,                                                                   desc = "Lazygit" },
+  { "<leader>gi",  "<cmd>lua require 'gitsigns'.nav_hunk('prev', {navigation_message = false})<cr>", desc = "Prev Hunk" },
+  { "<leader>gk",  "<cmd>lua require 'gitsigns'.nav_hunk('next', {navigation_message = false})<cr>", desc = "Next Hunk" },
+  { "<leader>gl",  "<cmd>lua require 'gitsigns'.blame_line()<cr>",                                   desc = "Blame" },
+  { "<leader>gL",  "<cmd>lua require 'gitsigns'.blame_line({full=true})<cr>",                        desc = "Blame Line (full)" },
+  { "<leader>gp",  "<cmd>lua require 'gitsigns'.preview_hunk()<cr>",                                 desc = "Preview Hunk" },
   {
     mode = { "n", "v" },
     { "<leader>gr", "<cmd>lua require 'gitsigns'.reset_hunk()<cr>", desc = "Reset Hunk" },
     { "<leader>gs", "<cmd>lua require 'gitsigns'.stage_hunk()<cr>", desc = "Stage Hunk" },
   },
-  { "<leader>gR", "<cmd>lua require 'gitsigns'.reset_buffer()<cr>", desc = "Reset Buffer" },
-  { "<leader>gu", "<cmd>lua require 'gitsigns'.undo_stage_hunk()<cr>", desc = "Undo Stage Hunk" },
-  { "<leader>go", "<cmd>Telescope git_status<cr>", desc = "Open changed file" },
-  { "<leader>gb", "<cmd>Telescope git_branches<cr>", desc = "Checkout branch" },
-  { "<leader>gc", "<cmd>Telescope git_commits<cr>", desc = "Checkout commit" },
-  { "<leader>gC", "<cmd>Telescope git_bcommits<cr>", desc = "Checkout commit(for current file)" },
-  { "<leader>gd", "<cmd>Gitsigns diffthis HEAD<cr>", desc = "Git Diff" },
+  { "<leader>gR",  "<cmd>lua require 'gitsigns'.reset_buffer()<cr>",    desc = "Reset Buffer" },
+  { "<leader>gu",  "<cmd>lua require 'gitsigns'.undo_stage_hunk()<cr>", desc = "Undo Stage Hunk" },
+  { "<leader>go",  "<cmd>Telescope git_status<cr>",                     desc = "Open changed file" },
+  { "<leader>gb",  "<cmd>Telescope git_branches<cr>",                   desc = "Checkout branch" },
+  { "<leader>gc",  "<cmd>Telescope git_commits<cr>",                    desc = "Checkout commit" },
+  { "<leader>gC",  "<cmd>Telescope git_bcommits<cr>",                   desc = "Checkout commit(for current file)" },
+  { "<leader>gd",  "<cmd>Gitsigns diffthis HEAD<cr>",                   desc = "Git Diff" },
 
-  { "<leader>pi", "<cmd>Lazy install<cr>", desc = "Install" },
-  { "<leader>ps", "<cmd>Lazy sync<cr>", desc = "Sync" },
-  { "<leader>pS", "<cmd>Lazy clear<cr>", desc = "Status" },
-  { "<leader>pc", "<cmd>Lazy clean<cr>", desc = "Clean" },
-  { "<leader>pu", "<cmd>Lazy update<cr>", desc = "Update" },
-  { "<leader>pp", "<cmd>Lazy profile<cr>", desc = "Profile" },
-  { "<leader>pl", "<cmd>Lazy log<cr>", desc = "Log" },
-  { "<leader>pd", "<cmd>Lazy debug<cr>", desc = "Debug" },
+  { "<leader>pi",  "<cmd>Lazy install<cr>",                             desc = "Install" },
+  { "<leader>ps",  "<cmd>Lazy sync<cr>",                                desc = "Sync" },
+  { "<leader>pS",  "<cmd>Lazy clear<cr>",                               desc = "Status" },
+  { "<leader>pc",  "<cmd>Lazy clean<cr>",                               desc = "Clean" },
+  { "<leader>pu",  "<cmd>Lazy update<cr>",                              desc = "Update" },
+  { "<leader>pp",  "<cmd>Lazy profile<cr>",                             desc = "Profile" },
+  { "<leader>pl",  "<cmd>Lazy log<cr>",                                 desc = "Log" },
+  { "<leader>pd",  "<cmd>Lazy debug<cr>",                               desc = "Debug" },
 
-  { '<leader>Oa', '<cmd>lua require("ufo").closeAllFolds()<cr>', desc = "Folding Code (Close All)" },
-  { '<leader>Od', '<cmd>lua require("ufo").openAllFolds()<cr>', desc = "Folding Code (Open All)" },
-  { "<leader>Ox", "zx", desc = "Update All Folds" },
+  { '<leader>Oa',  '<cmd>lua require("ufo").closeAllFolds()<cr>',       desc = "Folding Code (Close All)" },
+  { '<leader>Od',  '<cmd>lua require("ufo").openAllFolds()<cr>',        desc = "Folding Code (Open All)" },
+  { "<leader>Ox",  "zx",                                                desc = "Update All Folds" },
 
-  { "<leader>t'", "<cmd>tab split<CR>", desc = "Tab Split" },
-  { "<leader>t\\", "<cmd>tabclose<CR>", desc = "Tab Close" },
+  { "<leader>t'",  "<cmd>tab split<CR>",                                desc = "Tab Split" },
+  { "<leader>t\\", "<cmd>tabclose<CR>",                                 desc = "Tab Close" },
 
-  { "<leader>Ti", ":TSConfigInfo<cr>", desc = "Info" },
+  { "<leader>Ti",  ":TSConfigInfo<cr>",                                 desc = "Info" },
 
-  { "<leader>Tw", "<cmd>TodoTrouble<cr>", desc = "Todo Trouble" },
-  { "<leader>Td", "<cmd>Trouble todo filter.buf=0<cr>", desc = "Todo Trouble (Current Buffer)" },
+  { "<leader>Tw",  "<cmd>TodoTrouble<cr>",                              desc = "Todo Trouble" },
+  { "<leader>Td",  "<cmd>Trouble todo filter.buf=0<cr>",                desc = "Todo Trouble (Current Buffer)" },
 }

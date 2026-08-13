@@ -1,6 +1,19 @@
+local dap = require('dap')
+
+require('dap.ext.vscode').json_decode = require('json5').parse
+dap.defaults.fallback.switchbuf = 'useopen,uselast'
+
 -- NOTE: 由於 Weissle/persistent-breakpoints.nvim 不包含 set_breakpoint 因此自行新增了如下函數
 -- 或者改用我的 Fork 版本 (ESSO0428/persistent-breakpoints.nvim) 即可不定義以下函數
 require('persistent-breakpoints.api').set_breakpoint = function(condition, logMessage, hitCondition)
   require('dap').set_breakpoint(condition, logMessage, hitCondition);
   require('persistent-breakpoints.api').breakpoints_changed_in_current_buffer()
 end
+
+-- NOTE: 顯示 DAP UI 的快捷鍵
+require "user.debug.ui_helper"
+
+require "user.debug.bash"
+require "user.debug.python"
+require "user.debug.php"
+require "user.debug.javascript"

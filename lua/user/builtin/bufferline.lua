@@ -140,3 +140,14 @@ Nvim.builtin.bufferline.options = vim.tbl_deep_extend("force", {
   sort_by = "id",
   debug = { logging = false },
 }, Nvim.builtin.bufferline.options or {})
+
+local dap_filetypes = { "dapui_scopes", "dapui_breakpoints", "dapui_stacks", "dapui_watches" }
+
+for _, filetype in ipairs(dap_filetypes) do
+  table.insert(Nvim.builtin.bufferline.options.offsets, {
+    filetype = filetype,
+    text = "DAP",
+    highlight = "PanelHeading",
+    padding = 1
+  })
+end
