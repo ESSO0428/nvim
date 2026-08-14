@@ -48,35 +48,66 @@ local function jumplist_state()
   local jumps, idx = unpack(vim.fn.getjumplist())
 
   return {
-    back = idx > 1,
-    forward = idx < #jumps,
+    back = #jumps > 0 and idx > 0,
+    forward = #jumps > 0 and idx < #jumps - 1,
   }
 end
 
--- IDE-style jumplist Back / Forward
-_G.BufferlineJumpBack = function(...)
-  local keys =
-  vim.api.nvim_replace_termcodes(
-    "<C-o>",
-    true,
-    false,
-    true
-  )
+local function jumplist_state_changed(a, b)
+  if not a or not b then
+    return true
+  end
 
-  vim.api.nvim_feedkeys(keys, "n", false)
+  return a.back ~= b.back
+      or a.forward ~= b.forward
+end
+
+-----------------------------------------------------------------------
+-- Bufferline cache invalidate hook
+--
+-- 在真正的 bufferline config 載入完成後，
+-- install_bufferline_render_cache() 會覆寫這個 function。
+-----------------------------------------------------------------------
+
+_G.BufferlineCacheInvalidate = function()
+end
+
+-- IDE-style jumplist Back / Forward
+local function jump_and_refresh(keys)
+  local before = jumplist_state()
+
+  local termcodes =
+      vim.api.nvim_replace_termcodes(
+        keys,
+        true,
+        false,
+        true
+      )
+
+  vim.api.nvim_feedkeys(termcodes, "n", false)
+
+  -- feedkeys 不保證在這個 Lua function return 前完成，
+  -- 所以排到下一輪 event loop 再檢查 jumplist。
+  vim.schedule(function()
+    local after = jumplist_state()
+
+    if jumplist_state_changed(before, after) then
+      _G.BufferlineCacheInvalidate()
+    end
+  end)
+end
+
+_G.BufferlineJumpBack = function(...)
+  jump_and_refresh("<C-o>")
 end
 
 _G.BufferlineJumpForward = function(...)
-  local keys =
-  vim.api.nvim_replace_termcodes(
-    "<C-i>",
-    true,
-    false,
-    true
-  )
-
-  vim.api.nvim_feedkeys(keys, "n", false)
+  jump_and_refresh("<C-i>")
 end
+
+vim.api.nvim_set_hl(0, "BufferLineJumpDisabled", {
+  link = "Comment",
+})
 
 Nvim.builtin.bufferline.highlights = vim.tbl_deep_extend("force", Nvim.builtin.bufferline.highlights or {}, {
   background = {
@@ -104,26 +135,25 @@ Nvim.builtin.bufferline.options = vim.tbl_deep_extend("force", {
 
       return {
         {
-          text =
-          "%@v:lua.BufferlineJumpBack@"
+          text = "%@v:lua.BufferlineJumpBack@"
               .. "  "
               .. "%X",
-          highlight = state.back
-              and "BufferLineBufferVisible"
-              or "BufferLineFill",
+          link = state.back
+              and "Normal"
+              or "BufferLineJumpDisabled",
         },
         {
           text =
-          "%@v:lua.BufferlineJumpForward@"
+              "%@v:lua.BufferlineJumpForward@"
               .. "  "
               .. "%X",
-          highlight = state.forward
-              and "BufferLineBufferVisible"
-              or "BufferLineFill",
+          link = state.forward
+              and "Normal"
+              or "BufferLineJumpDisabled",
         },
         {
           text = " ",
-          highlight = "BufferLineFill",
+          link = "BufferLineFill",
         },
       }
     end,
