@@ -618,11 +618,29 @@ return {
         return ""
       end
 
-      require("lualine").setup {
+      local lualine = require("lualine")
+      lualine.setup {
         options = {
           globalstatus = true,
           component_separators = { left = "", right = "" },
           section_separators = { left = "", right = "" },
+          -- 新版 lualine 預設會用較積極的 refresh 機制，容易覆蓋 rainbow_csv
+          -- 暫時接管 statusline 的提示；這裡改成較保守的刷新設定。
+          refresh = {
+            statusline = 1000,
+            tabline = 1000,
+            winbar = 1000,
+            refresh_time = 1000,
+            events = {
+              "WinEnter",
+              "BufEnter",
+              "BufWritePost",
+              "SessionLoadPost",
+              "FileChangedShellPost",
+              "VimResized",
+              "Filetype",
+            },
+          },
         },
         sections = {
           lualine_a = { { "mode" } },
@@ -653,6 +671,31 @@ return {
           lualine_z = {},
         },
       }
+
+      -- 當其他功能把 laststatus 切成非 3 時，視為該功能暫時接管 statusline，
+      -- 此時禁止 lualine 繼續覆寫 statusline；回到 3 再恢復刷新。
+      local nvim_opts = require("lualine.utils.nvim_opts")
+      if not nvim_opts._pause_on_special_laststatus_patched then
+        local orig_set = nvim_opts.set
+        nvim_opts.set = function(name, val, opts)
+          if name == "statusline" and vim.o.laststatus ~= 3 then
+            return
+          end
+          return orig_set(name, val, opts)
+        end
+        nvim_opts._pause_on_special_laststatus_patched = true
+      end
+
+      local pause_group = vim.api.nvim_create_augroup("LualinePauseOnSpecialLaststatus", { clear = true })
+      vim.api.nvim_create_autocmd("OptionSet", {
+        group = pause_group,
+        pattern = "laststatus",
+        callback = function()
+          if tonumber(vim.v.option_new) == 3 then
+            lualine.refresh({ scope = "window", place = { "statusline" }, force = true })
+          end
+        end,
+      })
     end,
     dependencies = { "nvim-tree/nvim-web-devicons" },
   },
