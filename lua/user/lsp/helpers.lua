@@ -72,6 +72,146 @@ function M.php_root_dir(bufnr, on_dir)
   on_dir(M.find_git_ancestor_or_root(bufnr, { "composer.json", "index.php", "requirements.txt" }))
 end
 
+M.utils_exclude = {
+  ".git",
+  ".jj",
+  ".github",
+  ".gitlab",
+
+  ".direnv",
+  ".venv",
+  "venv",
+  ".env",
+  "env",
+
+  "node_modules",
+
+  "__pycache__",
+  ".pytest_cache",
+  ".mypy_cache",
+  ".ruff_cache",
+  ".tox",
+  ".nox",
+  ".ipynb_checkpoints",
+
+  "build",
+  "dist",
+  "target",
+
+  "logs",
+  "tmp",
+  "temp",
+
+  "data",
+  "datasets",
+  "outputs",
+  "results",
+  "checkpoints",
+  "weights",
+  "images",
+  "imgs",
+  "crops",
+  "features",
+
+  "artifacts",
+  "cache",
+  ".cache",
+}
+
+-- cache，只計算一次
+local lsp_exclude_cache = {}
+
+local function gitignore_to_lsp_pattern(line)
+  line = vim.trim(line)
+
+  if line == "" or line:match("^#") or line:match("^!") then
+    return nil
+  end
+
+  line = line:gsub("/$", "")
+
+  -- 已經明確指定 recursive glob
+  -- **/outputs/ -> **/outputs
+  if line:match("^%*%*/") then
+    return line
+  end
+
+  -- root-relative
+  -- /outputs/   -> outputs
+  -- /*outputs/  -> *outputs
+  if line:sub(1, 1) == "/" then
+    return line:sub(2)
+  end
+
+  -- pattern 本身已有路徑
+  -- foo/bar/ -> foo/bar
+  if line:find("/", 1, true) then
+    return line
+  end
+
+  -- 沒有 slash 才代表任意深度
+  -- outputs/ -> **/outputs
+  -- *.pth    -> **/*.pth
+  return "**/" .. line
+end
+
+local function get_git_root()
+  local result = vim.system({
+    "git",
+    "-C",
+    vim.fn.getcwd(),
+    "rev-parse",
+    "--show-toplevel",
+  }, { text = true }):wait()
+
+  if result.code ~= 0 then
+    return nil
+  end
+
+  return vim.trim(result.stdout)
+end
+
+function M.get_lsp_exclude()
+  local root = get_git_root()
+  local cache_key = root or "__global__"
+
+  if lsp_exclude_cache[cache_key] then
+    return lsp_exclude_cache[cache_key]
+  end
+
+  local excludes = vim.tbl_map(function(path)
+    return "**/" .. path
+  end, M.utils_exclude)
+
+  if root then
+    local gitignore = root .. "/.gitignore"
+
+    if vim.fn.filereadable(gitignore) == 1 then
+      for _, line in ipairs(vim.fn.readfile(gitignore)) do
+        local pattern = gitignore_to_lsp_pattern(line)
+
+        if pattern then
+          table.insert(excludes, pattern)
+        end
+      end
+    end
+  end
+
+  lsp_exclude_cache[cache_key] = vim.fn.uniq(vim.fn.sort(excludes))
+  return lsp_exclude_cache[cache_key]
+end
+
+-- 哪些 LSP / language species 使用 glob-style exclude
+local lsp_species_exclude = {
+  python = true,
+}
+
+function M.lsp_register_species_exclude(species)
+  return lsp_species_exclude[species]
+      and M.get_lsp_exclude()
+      or M.utils_exclude
+end
+
 function M.filtered_typescript_definition(_, result, ctx)
   if result == nil or vim.tbl_isempty(result) then
     return nil

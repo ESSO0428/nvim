@@ -14,6 +14,7 @@ return {
         reportMissingTypeStubs = false,
         typeCheckingMode = "basic",
         enableTypeIgnoreComments = true,
+        exclude = helpers.lsp_register_species_exclude("python"),
       },
     },
   },
