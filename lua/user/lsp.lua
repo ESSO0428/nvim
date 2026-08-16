@@ -81,7 +81,9 @@ capabilities.textDocument.foldingRange = {
   dynamicRegistration = false,
   lineFoldingOnly = true,
 }
-capabilities.workspace.didChangeWatchedFiles.dynamicRegistration = true
+
+-- WARNING: Disable (comment) this dynamicRegistration avoid neovim hang off when lsp attach (be like basedpyright have watch instead dynamicRegistration)
+-- capabilities.workspace.didChangeWatchedFiles.dynamicRegistration = true
 Nvim.builtin.lsp.capabilities = capabilities
 Nvim.builtin.lsp.get_capabilities = function()
   return vim.deepcopy(Nvim.builtin.lsp.capabilities or capabilities)

@@ -35,7 +35,7 @@ return {
       "stevearc/dressing.nvim",
       "nvim-tree/nvim-web-devicons",
     },
-    ft = { "NvimTree", "neo-tree", "Oil", "minifiles" },
+    ft = { "NvimTree", "neo-tree", "oil", "minifiles" },
     -- NOTE: don't use build here, have some bug
     -- use pcall require pymple, when dependency not install,
     -- pymple will jump to `:PympleBuild` warning
