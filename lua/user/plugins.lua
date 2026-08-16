@@ -485,7 +485,7 @@ local plugins = {
   {
     -- Main LSP Configuration
     "neovim/nvim-lspconfig",
-    event = "User FileOpened",
+    event = "User LspBootstrapReady",
     dependencies = {
       -- Automatically install LSPs and related tools to stdpath for Neovim
       { "mason-org/mason.nvim", config = true }, -- NOTE: Must be loaded before dependants
@@ -663,32 +663,19 @@ local plugins = {
 
       auto_lsp.setup()
 
-      local bootstrapped = false
       local function bootstrap_auto_lsp()
-        if bootstrapped then
-          return
-        end
-        bootstrapped = true
         auto_lsp.bootstrap_existing_buffers()
       end
 
-      -- NOTE: Running the initial buffer bootstrap during session restore can
-      -- race with FileType on 0.12.x. Wait until SessionLoadPost when needed,
-      -- otherwise schedule immediately and let the FileType autocmd handle the
-      -- rest.
-      local ok_session_utils, session_utils = pcall(require, "session_manager.utils")
-      if ok_session_utils and session_utils.session_loading then
-        vim.api.nvim_create_autocmd("User", {
-          group = vim.api.nvim_create_augroup("user_lsp_enable_after_session", { clear = true }),
-          pattern = "SessionLoadPost",
-          once = true,
-          callback = function()
-            vim.schedule(bootstrap_auto_lsp)
-          end,
-        })
-      else
-        vim.schedule(bootstrap_auto_lsp)
-      end
+      vim.api.nvim_create_autocmd("User", {
+        group = vim.api.nvim_create_augroup("user_lsp_enable_after_bootstrap_ready", { clear = true }),
+        pattern = "LspBootstrapReady",
+        callback = function()
+          vim.schedule(bootstrap_auto_lsp)
+        end,
+      })
+
+      vim.schedule(bootstrap_auto_lsp)
     end,
   },
   {

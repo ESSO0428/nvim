@@ -41,6 +41,13 @@ function utils.load_session(filename, discard_current)
   utils.session_loading = true
   vim.g.session_loading = true
 
+  local reset_lsp_bootstrap_ready = vim.tbl_get(Nvim, "runtime", "reset_lsp_bootstrap_ready")
+  if type(reset_lsp_bootstrap_ready) == "function" then
+    reset_lsp_bootstrap_ready()
+  else
+    vim.g.lsp_bootstrap_ready = false
+  end
+
   -- 保留 upstream 的 SessionLoadPre/Post 介面，
   -- 同時維持本地自訂的 SessionManagerLoadPre/Post 別名。
   local pre_event_data = {
@@ -101,6 +108,24 @@ function utils.load_session(filename, discard_current)
       modeline = false,
       data = post_event_data,
     })
+  end
+
+  if ok_source then
+    local emit_lsp_bootstrap_ready = vim.tbl_get(Nvim, "runtime", "emit_lsp_bootstrap_ready")
+    if type(emit_lsp_bootstrap_ready) == "function" then
+      emit_lsp_bootstrap_ready(vim.tbl_extend("force", {
+        source = "session_manager",
+      }, post_event_data))
+    else
+      vim.g.lsp_bootstrap_ready = true
+      vim.api.nvim_exec_autocmds("User", {
+        pattern = "LspBootstrapReady",
+        modeline = false,
+        data = vim.tbl_extend("force", {
+          source = "session_manager",
+        }, post_event_data),
+      })
+    end
   end
 
   if not ok_source then

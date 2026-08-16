@@ -8,6 +8,19 @@ local enabled_servers = {}
 local pending_installs = {}
 local unsupported_servers = {}
 
+local function is_session_loading()
+  if vim.g.session_loading == true then
+    return true
+  end
+
+  local ok_session_utils, session_utils = pcall(require, "session_manager.utils")
+  return ok_session_utils and session_utils.session_loading == true
+end
+
+local function is_lsp_bootstrap_ready()
+  return vim.g.lsp_bootstrap_ready == true
+end
+
 local function resolve_servers_for_filetype(filetype)
   local servers = ft_overrides[filetype] or ft_map[filetype] or {}
   local out = {}
@@ -172,6 +185,10 @@ end
 function M.maybe_enable_for_buffer(bufnr)
   bufnr = bufnr or vim.api.nvim_get_current_buf()
   if not vim.api.nvim_buf_is_valid(bufnr) then
+    return
+  end
+
+  if not is_lsp_bootstrap_ready() or is_session_loading() then
     return
   end
 
