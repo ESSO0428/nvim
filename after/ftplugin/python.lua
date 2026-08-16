@@ -1,3 +1,11 @@
+vim.opt_local.foldmarker = "#region,#endregion"
+
+local ft = vim.bo.filetype
+local marker = Nvim.builtin.FtFoldMarker[ft]
+if marker and type(marker) == "string" and marker:find(",") then
+  vim.opt_local.foldmarker = marker
+end
+
 if vim.b.CURRENT_REPL == nil then
   vim.b.CURRENT_REPL = "REPL:default"
   vim.keymap.set('n', '[w', ':norm strah<cr>', { buffer = true, silent = true })
