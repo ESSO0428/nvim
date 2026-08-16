@@ -41,13 +41,18 @@ function utils.load_session(filename, discard_current)
   utils.session_loading = true
   vim.g.session_loading = true
 
-  vim.api.nvim_exec_autocmds("User", {
-    pattern = "SessionManagerLoadPre",
-    modeline = false,
-    data = {
-      filename = filename,
-    },
-  })
+  -- 保留 upstream 的 SessionLoadPre/Post 介面，
+  -- 同時維持本地自訂的 SessionManagerLoadPre/Post 別名。
+  local pre_event_data = {
+    filename = filename,
+  }
+  for _, pattern in ipairs({ "SessionLoadPre", "SessionManagerLoadPre" }) do
+    vim.api.nvim_exec_autocmds("User", {
+      pattern = pattern,
+      modeline = false,
+      data = pre_event_data,
+    })
+  end
 
   local current_buffer = vim.api.nvim_get_current_buf()
 
@@ -85,15 +90,18 @@ function utils.load_session(filename, discard_current)
     utils.first_load = false
   end
 
-  vim.api.nvim_exec_autocmds("User", {
-    pattern = "SessionManagerLoadPost",
-    modeline = false,
-    data = {
-      success = ok_source,
-      filename = filename,
-      error = ok_source and nil or tostring(source_err),
-    },
-  })
+  local post_event_data = {
+    success = ok_source,
+    filename = filename,
+    error = ok_source and nil or tostring(source_err),
+  }
+  for _, pattern in ipairs({ "SessionLoadPost", "SessionManagerLoadPost" }) do
+    vim.api.nvim_exec_autocmds("User", {
+      pattern = pattern,
+      modeline = false,
+      data = post_event_data,
+    })
+  end
 
   if not ok_source then
     vim.notify(
