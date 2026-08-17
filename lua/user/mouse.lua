@@ -121,7 +121,7 @@ vim.keymap.set("n", "<RightMouse>",
             if vim.g.base46_cache then
               require("nvchad.term").new { cmd = cmd, pos = "sp" }
             else
-              ToggleTermExec('horizontal')
+              vim.cmd("ToggleTerm direction=horizontal")
             end
           end,
         },
