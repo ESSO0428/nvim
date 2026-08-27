@@ -4,6 +4,8 @@ vim.g.MarkdownNvim = 1
 vim.treesitter.language.register('markdown', 'copilot-chat')
 vim.treesitter.language.register('markdown', 'AvanteInput')
 
+Nvim.keys.normal_mode["sr"] = { "<cmd>RenderMarkdown preview<cr>", { desc = "Render Markdown preview" } }
+
 function M.setup()
   vim.api.nvim_create_autocmd("ExitPre", {
     group = vim.api.nvim_create_augroup("DisableRenderMarkdownOnQuit", { clear = true }),
@@ -136,41 +138,112 @@ function M.setup()
 
       note      = { raw = '[!NOTE]', rendered = '󰋽 Note', highlight = 'RenderMarkdownInfo', category = 'github' },
       tip       = { raw = '[!TIP]', rendered = '󰌶 Tip', highlight = 'RenderMarkdownSuccess', category = 'github' },
-      important = { raw = '[!IMPORTANT]', rendered = '󰅾 Important', highlight = 'RenderMarkdownHint',
-        category = 'github' },
+      important = {
+        raw = '[!IMPORTANT]',
+        rendered = '󰅾 Important',
+        highlight = 'RenderMarkdownHint',
+        category = 'github'
+      },
       warning   = { raw = '[!WARNING]', rendered = '󰀪 Warning', highlight = 'RenderMarkdownWarn', category = 'github' },
       caution   = { raw = '[!CAUTION]', rendered = '󰳦 Caution', highlight = 'RenderMarkdownError', category = 'github' },
       -- Obsidian: https://help.obsidian.md/Editing+and+formatting/Callouts
-      abstract  = { raw = '[!ABSTRACT]', rendered = '󰨸 Abstract', highlight = 'RenderMarkdownInfo',
-        category = 'obsidian' },
-      summary   = { raw = '[!SUMMARY]', rendered = '󰨸 Summary', highlight = 'RenderMarkdownInfo',
-        category = 'obsidian' },
+      abstract  = {
+        raw = '[!ABSTRACT]',
+        rendered = '󰨸 Abstract',
+        highlight = 'RenderMarkdownInfo',
+        category = 'obsidian'
+      },
+      summary   = {
+        raw = '[!SUMMARY]',
+        rendered = '󰨸 Summary',
+        highlight = 'RenderMarkdownInfo',
+        category = 'obsidian'
+      },
       tldr      = { raw = '[!TLDR]', rendered = '󰨸 Tldr', highlight = 'RenderMarkdownInfo', category = 'obsidian' },
       info      = { raw = '[!INFO]', rendered = '󰋽 Info', highlight = 'RenderMarkdownInfo', category = 'obsidian' },
       todo      = { raw = '[!TODO]', rendered = '󰗡 Todo', highlight = 'RenderMarkdownInfo', category = 'obsidian' },
       hint      = { raw = '[!HINT]', rendered = '󰌶 Hint', highlight = 'RenderMarkdownSuccess', category = 'obsidian' },
-      success   = { raw = '[!SUCCESS]', rendered = '󰄬 Success', highlight = 'RenderMarkdownSuccess',
-        category = 'obsidian' },
+      success   = {
+        raw = '[!SUCCESS]',
+        rendered = '󰄬 Success',
+        highlight = 'RenderMarkdownSuccess',
+        category = 'obsidian'
+      },
       check     = { raw = '[!CHECK]', rendered = '󰄬 Check', highlight = 'RenderMarkdownSuccess', category = 'obsidian' },
       done      = { raw = '[!DONE]', rendered = '󰄬 Done', highlight = 'RenderMarkdownSuccess', category = 'obsidian' },
-      question  = { raw = '[!QUESTION]', rendered = '󰘥 Question', highlight = 'RenderMarkdownWarn',
-        category = 'obsidian' },
+      question  = {
+        raw = '[!QUESTION]',
+        rendered = '󰘥 Question',
+        highlight = 'RenderMarkdownWarn',
+        category = 'obsidian'
+      },
       help      = { raw = '[!HELP]', rendered = '󰘥 Help', highlight = 'RenderMarkdownWarn', category = 'obsidian' },
       faq       = { raw = '[!FAQ]', rendered = '󰘥 Faq', highlight = 'RenderMarkdownWarn', category = 'obsidian' },
-      attention = { raw = '[!ATTENTION]', rendered = '󰀪 Attention', highlight = 'RenderMarkdownWarn',
-        category = 'obsidian' },
-      failure   = { raw = '[!FAILURE]', rendered = '󰅖 Failure', highlight = 'RenderMarkdownError',
-        category = 'obsidian' },
+      attention = {
+        raw = '[!ATTENTION]',
+        rendered = '󰀪 Attention',
+        highlight = 'RenderMarkdownWarn',
+        category = 'obsidian'
+      },
+      failure   = {
+        raw = '[!FAILURE]',
+        rendered = '󰅖 Failure',
+        highlight = 'RenderMarkdownError',
+        category = 'obsidian'
+      },
       fail      = { raw = '[!FAIL]', rendered = '󰅖 Fail', highlight = 'RenderMarkdownError', category = 'obsidian' },
-      missing   = { raw = '[!MISSING]', rendered = '󰅖 Missing', highlight = 'RenderMarkdownError',
-        category = 'obsidian' },
+      missing   = {
+        raw = '[!MISSING]',
+        rendered = '󰅖 Missing',
+        highlight = 'RenderMarkdownError',
+        category = 'obsidian'
+      },
       danger    = { raw = '[!DANGER]', rendered = '󱐌 Danger', highlight = 'RenderMarkdownError', category = 'obsidian' },
       error     = { raw = '[!ERROR]', rendered = '󱐌 Error', highlight = 'RenderMarkdownError', category = 'obsidian' },
       bug       = { raw = '[!BUG]', rendered = '󰨰 Bug', highlight = 'RenderMarkdownError', category = 'obsidian' },
-      example   = { raw = '[!EXAMPLE]', rendered = '󰉹 Example', highlight = 'RenderMarkdownHint',
-        category = 'obsidian' },
+      example   = {
+        raw = '[!EXAMPLE]',
+        rendered = '󰉹 Example',
+        highlight = 'RenderMarkdownHint',
+        category = 'obsidian'
+      },
       quote     = { raw = '[!QUOTE]', rendered = '󱆨 Quote', highlight = 'RenderMarkdownQuote', category = 'obsidian' },
       cite      = { raw = '[!CITE]', rendered = '󱆨 Cite', highlight = 'RenderMarkdownQuote', category = 'obsidian' },
+    },
+    overrides = {
+      -- More granular configuration mechanism, allows different aspects of buffers to have their own
+      -- behavior. Values default to the top level configuration if no override is provided. Supports
+      -- the following fields:
+      --   enabled, render_modes, debounce, anti_conceal, bullet, callout, checkbox, code, dash,
+      --   document, heading, html, indent, inline_highlight, latex, link, padding, paragraph,
+      --   pipe_table, quote, sign, win_options, yaml
+
+      -- Override for different buflisted values, @see :h 'buflisted'.
+      buflisted = {},
+      -- Override for different buftype values, @see :h 'buftype'.
+      buftype = {
+        nofile = {
+          render_modes = true,
+          padding = { highlight = 'NormalFloat' },
+          sign = { enabled = false },
+        },
+      },
+      -- Override for different filetype values, @see :h 'filetype'.
+      filetype = {},
+      -- Override for preview buffer.
+      preview = {
+        anti_conceal = {
+          enabled = false,
+        },
+        win_options = {
+          concealcursor = {
+            -- Used when not being rendered, get user setting.
+            default = vim.o.concealcursor,
+            -- Used when being rendered, show concealed text in all modes.
+            rendered = 'nvic',
+          },
+        },
+      },
     },
   })
 end
