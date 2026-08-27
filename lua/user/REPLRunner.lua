@@ -20,7 +20,7 @@
 -- for the global function `select_repl_type` to switch between
 -- Iron.nvim (default REPL execution tool) and different filetype REPLs (special REPL execution, such as Jupynium).
 vim.keymap.set({ 'n', 'v' }, 'strj', '<cmd>JupyniumExecuteSelectedCells<cr>', { noremap = true, silent = true })
-function jupyniumRunAbove()
+local function jupyniumRunAbove()
   local cursor_pos = vim.api.nvim_win_get_cursor(0)
   local row, col = cursor_pos[1], cursor_pos[2]
   local jupynium = require('jupynium.textobj')
@@ -29,7 +29,7 @@ function jupyniumRunAbove()
   vim.api.nvim_input("Vggstrj<ESC>" .. row .. "G" .. col .. "|")
 end
 
-function jupyniumRunBelow()
+local function jupyniumRunBelow()
   local cursor_pos = vim.api.nvim_win_get_cursor(0)
   local row, col = cursor_pos[1], cursor_pos[2]
   local jupynium = require('jupynium.textobj')
@@ -37,8 +37,6 @@ function jupyniumRunBelow()
   vim.api.nvim_input("VGstrj<ESC>" .. row .. "G" .. col .. "|")
 end
 
-vim.api.nvim_create_user_command("JupyniumRunAbove", "lua jupyniumRunAbove()", { nargs = 0 })
-vim.api.nvim_create_user_command("JupyniumRunBelow", "lua jupyniumRunBelow()", { nargs = 0 })
 -- lvim.builtin.which_key.mappings['rj'] = {
 --   name = "jupynium",
 --   a = { "<cmd>JupyniumStartAndAttachToServer<cr>", "Jupynium Start and Attach Server" },
@@ -86,8 +84,8 @@ local repl_types = {
       vim.b.CURRENT_REPL = "REPL:jupynium"
       vim.keymap.set('n', '[w', ':JupyniumExecuteSelectedCells<cr>', { buffer = true, silent = true })
       vim.keymap.set('n', ']w', ':JupyniumExecuteSelectedCells<cr>', { buffer = true, silent = true })
-      vim.keymap.set('n', '[e', ':JupyniumRunAbove<cr>', { buffer = true, silent = true })
-      vim.keymap.set('n', ']e', ':JupyniumRunBelow<cr>', { buffer = true, silent = true })
+      vim.keymap.set('n', '[e', function() jupyniumRunAbove() end, { buffer = true, silent = true })
+      vim.keymap.set('n', ']e', function() jupyniumRunBelow() end, { buffer = true, silent = true })
     end
   }
   -- Add more specialized REPLs here.
@@ -106,7 +104,7 @@ end
 -- NOTE: Global REPL switch function.
 -- This can be expanded to switch between Iron.nvim and other specialized REPLs.
 -- Use the `repl_types` table for expansion.
-function select_repl_type()
+local function select_repl_type()
   local pickers = require('telescope.pickers')
   local finders = require('telescope.finders')
   local conf = require('telescope.config').values
@@ -140,4 +138,4 @@ function select_repl_type()
 end
 
 -- Bind the function to a command
-vim.api.nvim_set_keymap('n', '<leader>s:', ':lua select_repl_type()<cr>', { noremap = true, silent = true })
+vim.keymap.set('n', '<leader>s:', function() select_repl_type() end, { noremap = true, silent = true })

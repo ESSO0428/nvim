@@ -21,7 +21,7 @@ end
 
 -- 創建一個用戶命令 `CustomGWL` 綁定到 `custom_gwl` 函數
 vim.api.nvim_create_user_command('CustomGWL', custom_gwl, {})
-vim.api.nvim_set_keymap('n', 'gww', ':CustomGWL<CR>', { noremap = true, silent = true })
+vim.keymap.set('n', 'gww', ':CustomGWL<CR>', { noremap = true, silent = true })
 
 -- 定義一個函數來插入指定的 code block
 local function SurroundCodeWithCodeBlock()
@@ -41,4 +41,4 @@ end
 
 -- 創建一個用戶命令 `SurroundCodeWithCodeBlock` 綁定到 `SurroundCodeWithCodeBlock` 函數
 vim.api.nvim_create_user_command('SurroundCodeWithCodeBlock', SurroundCodeWithCodeBlock, {})
-vim.api.nvim_set_keymap('v', ',c', ':<C-U>SurroundCodeWithCodeBlock<CR>', { noremap = true, silent = true })
+vim.keymap.set('v', ',c', ':<C-U>SurroundCodeWithCodeBlock<CR>', { noremap = true, silent = true })
