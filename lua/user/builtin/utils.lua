@@ -4,12 +4,14 @@ Nvim.DiffTool = {}
 Nvim.MarkDownTool = {}
 Nvim.Buffer_Manager = {}
 Nvim.Buffer_check = {}
+Nvim.FileTool = {}
 Nvim.Quickfix = {}
 Nvim.DAP = {}
 Nvim.DAPUI = {}
 
 
 Nvim.Buffer_Manager.scratch_opener = require "user.builtin.apps.scratch_opener"
+Nvim.FileTool.file_viewer = require "user.builtin.apps.file_viewer"
 
 function Nvim.nvim_create_user_commands(command_names, command_function)
   for _, cmd_name in ipairs(command_names) do
@@ -899,17 +901,17 @@ local function markdown_try_regex_link(mode)
   end
 
   return markdown_match_at_cursor(text, cursor_col, "%[%[[^%]]-%]%]", function(match_text)
-    local source = markdown_extract_wiki_source(match_text)
-    if source then
-      return { target = source, source = "regex" }
-    end
-  end)
+        local source = markdown_extract_wiki_source(match_text)
+        if source then
+          return { target = source, source = "regex" }
+        end
+      end)
       or markdown_match_at_cursor(text, cursor_col, "!?%b[]%b()", function(match_text)
-    local destination = match_text:match("^!?%b[]%((.-)%)$")
-    if destination then
-      return { target = markdown_normalize_link_target(destination), source = "regex" }
-    end
-  end)
+        local destination = match_text:match("^!?%b[]%((.-)%)$")
+        if destination then
+          return { target = markdown_normalize_link_target(destination), source = "regex" }
+        end
+      end)
       or markdown_match_at_cursor(text, cursor_col, "%b[]%b[]", function(match_text)
         local label = match_text:match("^%b[]%[([^%]]+)%]$")
         if label and label ~= "" then

@@ -1,8 +1,5 @@
 local M = {}
 
--- Store opened buffers as a Set (key-value pair)
-local opened_buffers = {}
-
 -- Function to create an editable floating scratch buffer
 function M.open_scratch()
   local buf = vim.api.nvim_create_buf(false, true) -- Create buffer
