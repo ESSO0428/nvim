@@ -30,7 +30,7 @@ local plugins = {
       },
     },
   },
-  { "Bilal2453/luvit-meta", lazy = true },
+  { "Bilal2453/luvit-meta",         lazy = true },
   { import = "plugins" },
   { import = "plugins.autocomplete" },
   { import = "plugins.language" },
@@ -387,7 +387,7 @@ local plugins = {
         },
       },
       plugins = {
-        marks = false, -- shows a list of your marks on ' and `
+        marks = false,     -- shows a list of your marks on ' and `
         registers = false, -- shows your registers on " in NORMAL or <C-r> in INSERT mode
         spelling = {
           enabled = false,
@@ -396,14 +396,14 @@ local plugins = {
         -- the presets plugin, adds help for a bunch of default keybindings in Neovim
         -- No actual key bindings are created
         presets = {
-          operators = false, -- adds help for operators like d, y, ...
-          motions = false, -- adds help for motions
+          operators = false,    -- adds help for operators like d, y, ...
+          motions = false,      -- adds help for motions
           text_objects = false, -- help for text objects triggered after entering an operator
-          windows = false, -- default bindings on <c-w>
-          nav = false, -- misc bindings to work with windows
-          z = false, -- bindings for folds, spelling and others prefixed with z
-          g = false, -- bindings for prefixed with g
-          h = false, -- bindings for hydra with h
+          windows = false,      -- default bindings on <c-w>
+          nav = false,          -- misc bindings to work with windows
+          z = false,            -- bindings for folds, spelling and others prefixed with z
+          g = false,            -- bindings for prefixed with g
+          h = false,            -- bindings for hydra with h
         },
       },
       win = {
@@ -443,15 +443,15 @@ local plugins = {
       hide_numbers = true, -- hide the number column in toggleterm buffers
       shade_filetypes = {},
       shade_terminals = true,
-      shading_factor = 2, -- the degree by which to darken to terminal colour, default: 1 for dark backgrounds, 3 for light
+      shading_factor = 2,      -- the degree by which to darken to terminal colour, default: 1 for dark backgrounds, 3 for light
       start_in_insert = true,
       insert_mappings = false, -- whether or not the open mapping applies in insert mode
       persist_size = false,
       -- direction = 'vertical' | 'horizontal' | 'window' | 'float',
       direction = "float",
       close_on_exit = true, -- close the terminal window when the process exits
-      auto_scroll = true, -- automatically scroll to the bottom on terminal output
-      shell = nil, -- change the default shell
+      auto_scroll = true,   -- automatically scroll to the bottom on terminal output
+      shell = nil,          -- change the default shell
       -- This field is only relevant if direction is set to 'float'
       float_opts = {
         -- The border key is *almost* the same as 'nvim_win_open'
@@ -494,7 +494,7 @@ local plugins = {
 
       -- Useful status updates for LSP.
       -- NOTE: `opts = {}` is the same as calling `require('fidget').setup({})`
-      { "j-hui/fidget.nvim", opts = {} },
+      { "j-hui/fidget.nvim",    opts = {} },
 
       -- Allows extra capabilities provided by blink.cmp
       "saghen/blink.cmp",
@@ -891,7 +891,7 @@ local plugins = {
 
       local keymap = {
         preset = "none",
-        ["<Tab>"] = { apply_copilot_nes_and_goto, "snippet_forward", "fallback" },
+        ["<Tab>"] = { apply_copilot_nes_and_goto, "snippet_forward", "accept", "fallback" },
         ["<M-i>"] = { "select_prev", "show" },
         ["<M-k>"] = { "select_next", "show" },
         ["<M-j>"] = {

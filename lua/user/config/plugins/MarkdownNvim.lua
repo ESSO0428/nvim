@@ -82,6 +82,9 @@ function M.setup()
       -- Output is evaluated using the same logic as 'icons'.
       highlight = 'Identifier',
     },
+    checkbox = {
+      bullet = true,
+    },
     html = {
       -- Turn on / off all HTML rendering
       enabled = false,
