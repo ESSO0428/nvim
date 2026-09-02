@@ -889,9 +889,19 @@ local plugins = {
         return nes.apply_pending_nes() and nes.walk_cursor_end_edit()
       end
 
+      local function accept_copilot_suggestion()
+        local ok, suggestion = pcall(require, "copilot.suggestion")
+        if not ok or not suggestion.is_visible() then
+          return false
+        end
+
+        suggestion.accept()
+        return true
+      end
+
       local keymap = {
         preset = "none",
-        ["<Tab>"] = { apply_copilot_nes_and_goto, "snippet_forward", "accept", "fallback" },
+        ["<Tab>"] = { apply_copilot_nes_and_goto, "snippet_forward", "accept", accept_copilot_suggestion, "fallback" },
         ["<M-i>"] = { "select_prev", "show" },
         ["<M-k>"] = { "select_next", "show" },
         ["<M-j>"] = {

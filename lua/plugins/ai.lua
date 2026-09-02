@@ -12,7 +12,7 @@ return {
       },
     },
     config = function()
-      require("user.config.plugins.Copilot")
+      require("user.config.plugins.Copilot").setup()
     end,
   },
   {
