@@ -23,6 +23,31 @@ Nvim.builtin.lsp.automatic_installation = {
 }
 
 vim.hl.priorities.semantic_tokens = 90
+vim.api.nvim_create_autocmd("LspTokenUpdate", {
+  callback = function(args)
+    if vim.bo[args.buf].filetype ~= "python" then
+      return
+    end
+
+    local token = args.data.token
+
+    local types = {
+      namespace = true,
+      ["function"] = true,
+      class = true,
+    }
+
+    if types[token.type] then
+      vim.lsp.semantic_tokens.highlight_token(
+        token,
+        args.buf,
+        args.data.client_id,
+        "@lsp.type." .. token.type .. ".python",
+        { priority = 110 }
+      )
+    end
+  end,
+})
 
 vim.lsp.handlers["textDocument/signatureHelp"] = function(err, result, ctx, config)
   config = vim.tbl_deep_extend("force", config or {}, {
