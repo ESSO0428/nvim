@@ -49,18 +49,6 @@ vim.api.nvim_create_autocmd("LspTokenUpdate", {
   end,
 })
 
-vim.lsp.handlers["textDocument/signatureHelp"] = function(err, result, ctx, config)
-  config = vim.tbl_deep_extend("force", config or {}, {
-    border = "rounded",
-    close_events = { "BufHidden", "InsertLeave" },
-  })
-  return vim.lsp.handlers.signature_help(err, result, ctx, config)
-end
-
-vim.lsp.handlers["textDocument/hover"] = function(err, result, ctx, config)
-  config = vim.tbl_deep_extend("force", config or {}, { border = "rounded" })
-  return vim.lsp.handlers.hover(err, result, ctx, config)
-end
 vim.diagnostic.config {
   float = { border = "rounded" },
 }
