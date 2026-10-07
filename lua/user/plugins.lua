@@ -284,6 +284,9 @@ local plugins = {
       local icons = require("user.config.icons")
 
       return {
+        preview_config = {
+          border = 'rounded',
+        },
         signs = {
           add = {
             hl = "GitSignsAdd",
