@@ -77,11 +77,26 @@ local function build_bigfile_viewers(fileName)
     return false
   end
 
+  -- leaf: terminal Markdown previewer. Source: https://github.com/rivolink/leaf
+  local function add_leaf()
+    if cmd_exists("leaf") then
+      table.insert(viewers, {
+        name = "leaf",
+        desc = "Preview Markdown with leaf",
+        cmd = "leaf --watch " .. escaped,
+      })
+      return true
+    end
+
+    return false
+  end
+
   if is_table_like_file(fileName) then
     add_visidata()
     add_bat()
     add_fallback_pager()
   else
+    add_leaf()
     add_bat()
     add_visidata()
     add_fallback_pager()
