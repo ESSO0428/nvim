@@ -65,8 +65,8 @@ end
 -- 找不到 `hostname` 或是 `hostname` 為排除對象，則會報錯提醒如何更新 `hostname`
 ---@param file string | nil
 function _G.rcode(file)
-  GetServerHostName(M.host)
-  M.host = vim.g.host
+  local host = GetServerHostName(M.host)
+  M.host = host
 
   local buffers = vim.api.nvim_list_bufs()
   local fileNames = {}
@@ -125,7 +125,7 @@ function _G.rcode(file)
   -- 将字符串转换为十六进制编码
   if is_match_exclude_hostname_bool == -1 then
     local jsonHost = '{"hostName":"' .. M.host .. '"}' -- 将主机名转换为 JSON 格式
-    local hexHost = M.encodeHostname(jsonHost) -- 调用 encodeHostname 函数
+    local hexHost = M.encodeHostname(jsonHost)         -- 调用 encodeHostname 函数
     str = "code --remote ssh-remote+" ..
         hexHost .. " `\n" .. cwd
     str = str .. "; `\n" ..

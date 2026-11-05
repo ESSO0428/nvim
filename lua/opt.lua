@@ -133,41 +133,41 @@ vim.api.nvim_create_autocmd("VimLeavePre", {
 
 -- lunarvim default options
 local default_options = {
-  backup = false, -- creates a backup file
+  backup = false,            -- creates a backup file
   clipboard = "unnamedplus", -- allows neovim to access the system clipboard
-  cmdheight = 1, -- more space in the neovim command line for displaying messages
+  cmdheight = 1,             -- more space in the neovim command line for displaying messages
   completeopt = { "menuone", "noselect" },
-  conceallevel = 0, -- so that `` is visible in markdown files
-  fileencoding = "utf-8", -- the encoding written to a file
-  foldmethod = "manual", -- folding, set to "expr" for treesitter based folding
-  foldexpr = "", -- set to "nvim_treesitter#foldexpr()" for treesitter based folding
-  hidden = true, -- required to keep multiple buffers and open multiple buffers
-  hlsearch = true, -- highlight all matches on previous search pattern
-  ignorecase = true, -- ignore case in search patterns
-  mouse = "a", -- allow the mouse to be used in neovim
-  pumheight = 10, -- pop up menu height
-  showmode = false, -- we don't need to see things like -- INSERT -- anymore
-  smartcase = true, -- smart case
-  splitbelow = true, -- force all horizontal splits to go below current window
-  splitright = true, -- force all vertical splits to go to the right of current window
-  swapfile = false, -- creates a swapfile
-  termguicolors = true, -- set term gui colors (most terminals support this)
-  timeoutlen = 1000, -- time to wait for a mapped sequence to complete (in milliseconds)
-  title = true, -- set the title of window to the value of the titlestring
+  conceallevel = 0,          -- so that `` is visible in markdown files
+  fileencoding = "utf-8",    -- the encoding written to a file
+  foldmethod = "manual",     -- folding, set to "expr" for treesitter based folding
+  foldexpr = "",             -- set to "nvim_treesitter#foldexpr()" for treesitter based folding
+  hidden = true,             -- required to keep multiple buffers and open multiple buffers
+  hlsearch = true,           -- highlight all matches on previous search pattern
+  ignorecase = true,         -- ignore case in search patterns
+  mouse = "a",               -- allow the mouse to be used in neovim
+  pumheight = 10,            -- pop up menu height
+  showmode = false,          -- we don't need to see things like -- INSERT -- anymore
+  smartcase = true,          -- smart case
+  splitbelow = true,         -- force all horizontal splits to go below current window
+  splitright = true,         -- force all vertical splits to go to the right of current window
+  swapfile = false,          -- creates a swapfile
+  termguicolors = true,      -- set term gui colors (most terminals support this)
+  timeoutlen = 1000,         -- time to wait for a mapped sequence to complete (in milliseconds)
+  title = true,              -- set the title of window to the value of the titlestring
   -- opt.titlestring = "%<%F%=%l/%L - nvim" -- what the title of the window will be set to
-  undofile = true, -- enable persistent undo
-  updatetime = 100, -- faster completion
-  writebackup = false, -- if a file is being edited by another program (or was written to file while editing with another program), it is not allowed to be edited
-  expandtab = true, -- convert tabs to spaces
-  shiftwidth = 2, -- the number of spaces inserted for each indentation
-  tabstop = 2, -- insert 2 spaces for a tab
-  cursorline = true, -- highlight the current line
-  number = true, -- set numbered lines
-  numberwidth = 4, -- set number column width to 2 {default 4}
-  signcolumn = "yes", -- always show the sign column, otherwise it would shift the text each time
-  wrap = false, -- display lines as one long line
-  scrolloff = 8, -- minimal number of screen lines to keep above and below the cursor.
-  sidescrolloff = 8, -- minimal number of screen lines to keep left and right of the cursor.
+  undofile = true,           -- enable persistent undo
+  updatetime = 100,          -- faster completion
+  writebackup = false,       -- if a file is being edited by another program (or was written to file while editing with another program), it is not allowed to be edited
+  expandtab = true,          -- convert tabs to spaces
+  shiftwidth = 2,            -- the number of spaces inserted for each indentation
+  tabstop = 2,               -- insert 2 spaces for a tab
+  cursorline = true,         -- highlight the current line
+  number = true,             -- set numbered lines
+  numberwidth = 4,           -- set number column width to 2 {default 4}
+  signcolumn = "yes",        -- always show the sign column, otherwise it would shift the text each time
+  wrap = false,              -- display lines as one long line
+  scrolloff = 8,             -- minimal number of screen lines to keep above and below the cursor.
+  sidescrolloff = 8,         -- minimal number of screen lines to keep left and right of the cursor.
   showcmd = false,
   ruler = false,
   laststatus = 3,
@@ -228,7 +228,30 @@ vim.opt.termguicolors = true
 -- vim.o.fileformats = "unix"
 -- vim.opt.inccommand = ""
 vim.opt.inccommand = "split"
-vim.opt.spell = true
+
+-- vim.opt.spell = true
+local filetypes = vim.tbl_extend("force", require("user.core.filetypes"), {
+  text = true,
+  plaintex = true,
+  typst = true,
+  gitcommit = true,
+  markdown = true,
+})
+-- 排除 Terminal
+filetypes.terminal = nil
+vim.api.nvim_create_autocmd("FileType", {
+  group = vim.api.nvim_create_augroup('spell_text', { clear = true }),
+  pattern = vim.tbl_keys(filetypes),
+  callback = function(args)
+    if vim.bo[args.buf].buftype ~= "" then
+      return
+    end
+
+    -- vim.opt_local.wrap = true
+    vim.opt_local.spell = true
+  end,
+})
+
 vim.opt.spelllang = "en,cjk"
 -- spell options noplainbuffer (default) add camel
 vim.opt.spelloptions:append "camel"
@@ -270,7 +293,6 @@ vim.opt.concealcursor = "nc"
 -- ex: code --remote ssh-remote+LabServerDP
 -- default hostname
 vim.g.host = "YourVscodeReomoteServerName"
-local host = vim.g.host
 
 -- 與 `vscode remote ssh` 集成
 -- 取得如範例的指令: `code --remote ssh-remote+LabServerDP`
@@ -282,14 +304,17 @@ local host = vim.g.host
 -- 特別注意範例的 `YourVscodeReomoteServerName` 再後續與 `vscode` 集成的 function `rcode` 會被視為排除對象
 ---@param host string
 function GetServerHostName(host)
+  vim.g.host = host or vim.g.host
   local ip = nil
 
   -- NOTE: 棄用 `hostname -I`，因為某些 Linux 發行版 (如 Arch) 未支援此參數
   -- 改用 ip -json 搭配 grep 抓取本機 IP，更具相容性
   -- local command = io.popen("hostname -I 2> /dev/null | awk '{print $1}'")
   local command = io.popen([[ip -json route get 8.8.8.8 | grep -oP '"prefsrc":\s*"\K[0-9.]+' 2> /dev/null]])
-  ip = command:read("*line")
-  command:close()
+  if command ~= nil then
+    ip = command:read("*line")
+    command:close()
+  end
 
   -- 使用 Lua 读取 ~/.ssh/host_names 文件获取主机名和对应的 IP
   local hostnames_file = os.getenv("HOME") .. "/.ssh/host_names"
@@ -299,17 +324,17 @@ function GetServerHostName(host)
       for line in file:lines() do
         local hostname, hostname_ip = line:match("(%S+)%s+(%S+)")
         if hostname_ip and hostname_ip == ip then
-          host = hostname
-          vim.g.host = host
+          vim.g.host = hostname
           break
         end
       end
       file:close()
     end
   end
+  return vim.g.host
 end
 
-GetServerHostName(host)
+GetServerHostName(vim.g.host)
 
 -- terminal events
 local term_group = vim.api.nvim_create_augroup("TerminalEvents", { clear = true })
