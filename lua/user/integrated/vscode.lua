@@ -133,4 +133,78 @@ function _G.rcode(file)
   vim.cmd("tabnew " .. vim.fn.fnameescape(logFile))
 end
 
+-- 登錄這台 server 對應的 Windows ssh config Host 別名（:UpdateRegisterHostHameFromLocal）
+-- 透過 reverse ssh tunnel（~/.rssh_tunnel 的 port，WSL 端是 `ncat -e /bin/sh`）
+-- 請 WSL 執行 `vscode-remote-host-sync --lookup <本機 IP...>`，答案沿同一條連線傳回，
+-- 再寫入本機 ~/.ssh/host_names.d/<IP>。不需要從 Windows ssh 回來，所以跳板機也能用。
+M.tunnel_file = vim.fn.expand("~/.rssh_tunnel")
+M.remote_sync_cmd = '"$HOME/bin/vscode-remote-host-sync"'
+
+function M.register_host_from_local()
+  local vr = Nvim.vscode_remote
+  local function err(msg)
+    vim.notify("UpdateRegisterHostHameFromLocal: " .. msg, vim.log.levels.ERROR)
+  end
+
+  local current, current_ip = vr.lookup_host()
+  if current then
+    local choice = vim.fn.confirm(
+      ("目前登錄：%s（%s）\n要從 Windows ssh config 重新取得嗎？"):format(current, current_ip), "&Yes\n&No", 2)
+    if choice ~= 1 then return end
+  end
+
+  if vim.fn.filereadable(M.tunnel_file) == 0 then
+    return err("找不到 " .. M.tunnel_file .. "，請先在 WSL 執行 reverse-ssh-tunnel-manager")
+  end
+  local port = vim.trim(vim.fn.readfile(M.tunnel_file, "", 1)[1] or "")
+  if not port:match("^%d+$") then
+    return err(M.tunnel_file .. " 沒有 port（tunnel 已關閉？）")
+  end
+  if vim.fn.executable("nc") == 0 then
+    return err("這台 server 沒有 nc")
+  end
+  local ips = vr.local_ipv4s()
+  if #ips == 0 then
+    return err("取不到本機 IP")
+  end
+
+  local remote_cmd = M.remote_sync_cmd .. " --lookup " .. table.concat(ips, " ") .. " 2>&1"
+  -- keep stdin open until the WSL side answers and closes; the echo loop ends via SIGPIPE once nc exits
+  local script = [[(printf '%s\nexit\n' "$1"; i=0; while [ $i -lt 40 ]; do sleep 0.2; echo; i=$((i+1)); done) | nc -w 10 127.0.0.1 "$2"]]
+  vim.notify("UpdateRegisterHostHameFromLocal: 透過 tunnel 查詢中（" .. table.concat(ips, ", ") .. "）…")
+
+  vim.system({ "sh", "-c", script, "sh", remote_cmd, port }, { text = true, timeout = 15000 }, vim.schedule_wrap(function(res)
+    local out = res.stdout or ""
+    local ip, host
+    for line in out:gmatch("[^\r\n]+") do
+      local a, b = line:match("^(%d+%.%d+%.%d+%.%d+)%s+([%w._-]+)%s*$")
+      if a and vim.tbl_contains(ips, a) then
+        ip, host = a, b
+        break
+      end
+    end
+    if not host then
+      local detail = vim.trim(out) ~= "" and ("\nWSL 回應：" .. vim.trim(out)) or ""
+      return err("Windows ssh config 裡沒有 HostName 等於 " .. table.concat(ips, " / ") .. " 的 Host，"
+        .. "或 tunnel 沒有回應（WSL 需有 ~/bin/vscode-remote-host-sync）。"
+        .. "也可以在 WSL 手動執行：vscode-remote-host-sync <Host>" .. detail)
+    end
+
+    local dir = vr.host_names_dir
+    vim.fn.mkdir(dir, "p")
+    local target = dir .. "/" .. ip
+    local tmp = ("%s.tmp.%d"):format(target, vim.fn.getpid())
+    if vim.fn.writefile({ host }, tmp) ~= 0 then
+      return err("無法寫入 " .. tmp)
+    end
+    local ok, rename_err = (vim.uv or vim.loop).fs_rename(tmp, target)
+    if not ok then
+      os.remove(tmp)
+      return err("無法寫入 " .. target .. "：" .. tostring(rename_err))
+    end
+    vim.g.host, M.host = host, host
+    vim.notify(("UpdateRegisterHostHameFromLocal: 已登錄 %s → %s"):format(ip, host))
+  end))
+end
+
 return M

@@ -296,41 +296,93 @@ vim.g.host = "YourVscodeReomoteServerName"
 
 -- 與 `vscode remote ssh` 集成
 -- 取得如範例的指令: `code --remote ssh-remote+LabServerDP`
--- 這裡用於取得 `hosname`, ex : `LabServerDP`
--- 通過讀取 `~/.ssh/host_names` 文件，來取得對上述 `hostname`
--- 如果 `~/.ssh/host_names` 文件不存在或格式有誤則使用預設的 `hostname`
--- 或是最後一次使用的 `hostname`，這些 `hostname` 將會寫入 `vim.g.host`
+-- 這裡用於取得 `hostname`, ex : `LabServerDP`（Windows ~/.ssh/config 的 Host 別名）
+-- 查詢順序：
+--   1. ~/.ssh/host_names.d/<本機 IP>（內容是 Host 別名；每個 IP 一個檔案，共用 NFS 的 server 不會互相覆蓋）
+--   2. 舊格式 ~/.ssh/host_names（每行 "Host IP"）
+-- 本機 IP 依序嘗試：預設路由的來源 IP，再來是所有 global IPv4（多網卡 / docker0 也對得上）
+-- 找不到時保留 `vim.g.host`（預設或最後一次使用的 hostname）
+-- 登錄方式：server 上 :UpdateRegisterHostHameFromLocal，或在 WSL 執行 `vscode-remote-host-sync <Host>`
 -- ---
--- 特別注意範例的 `YourVscodeReomoteServerName` 再後續與 `vscode` 集成的 function `rcode` 會被視為排除對象
----@param host string
-function GetServerHostName(host)
-  vim.g.host = host or vim.g.host
-  local ip = nil
+-- 特別注意範例的 `YourVscodeReomoteServerName` 在 `rcode` 會被視為排除對象
+Nvim.vscode_remote = Nvim.vscode_remote or {}
+Nvim.vscode_remote.host_names_dir = vim.fn.expand("~/.ssh/host_names.d")
+Nvim.vscode_remote.legacy_host_names = vim.fn.expand("~/.ssh/host_names")
 
-  -- NOTE: 棄用 `hostname -I`，因為某些 Linux 發行版 (如 Arch) 未支援此參數
-  -- 改用 ip -json 搭配 grep 抓取本機 IP，更具相容性
-  -- local command = io.popen("hostname -I 2> /dev/null | awk '{print $1}'")
-  local command = io.popen([[ip -json route get 8.8.8.8 | grep -oP '"prefsrc":\s*"\K[0-9.]+' 2> /dev/null]])
-  if command ~= nil then
-    ip = command:read("*line")
-    command:close()
-  end
+function Nvim.vscode_remote.valid_host_alias(name)
+  return type(name) == "string" and name:match("^[%w._-]+$") ~= nil
+end
 
-  -- 使用 Lua 读取 ~/.ssh/host_names 文件获取主机名和对应的 IP
-  local hostnames_file = os.getenv("HOME") .. "/.ssh/host_names"
-  if vim.fn.filereadable(hostnames_file) == 1 then
-    local file = io.open(hostnames_file, "r")
-    if file then
-      for line in file:lines() do
-        local hostname, hostname_ip = line:match("(%S+)%s+(%S+)")
-        if hostname_ip and hostname_ip == ip then
-          vim.g.host = hostname
-          break
-        end
-      end
-      file:close()
+--- Local IPv4 addresses, primary (default route source) first
+---@return string[]
+function Nvim.vscode_remote.local_ipv4s()
+  local ips, seen = {}, {}
+  local function add(ip)
+    if ip and not seen[ip] then
+      seen[ip] = true
+      table.insert(ips, ip)
     end
   end
+  local ipv4 = "(%d+%.%d+%.%d+%.%d+)"
+
+  if vim.fn.executable("ip") == 1 then
+    local route = vim.fn.system({ "ip", "-o", "route", "get", "8.8.8.8" })
+    if vim.v.shell_error == 0 then
+      add(route:match("src%s+" .. ipv4))
+    end
+    local addrs = vim.fn.system({ "ip", "-o", "-4", "addr", "show", "scope", "global" })
+    if vim.v.shell_error == 0 then
+      for ip in addrs:gmatch("inet%s+" .. ipv4) do
+        add(ip)
+      end
+    end
+  end
+  if #ips == 0 and vim.fn.executable("hostname") == 1 then
+    local out = vim.fn.system({ "hostname", "-I" })
+    if vim.v.shell_error == 0 then
+      for ip in out:gmatch(ipv4) do
+        add(ip)
+      end
+    end
+  end
+  return ips
+end
+
+--- Registered Host alias for this server
+---@return string|nil host, string|nil ip
+function Nvim.vscode_remote.lookup_host()
+  local valid = Nvim.vscode_remote.valid_host_alias
+  local ips = Nvim.vscode_remote.local_ipv4s()
+
+  for _, ip in ipairs(ips) do
+    local file = Nvim.vscode_remote.host_names_dir .. "/" .. ip
+    if vim.fn.filereadable(file) == 1 then
+      local name = vim.trim(vim.fn.readfile(file, "", 1)[1] or "")
+      if valid(name) then
+        return name, ip
+      end
+    end
+  end
+
+  local legacy = Nvim.vscode_remote.legacy_host_names
+  if vim.fn.filereadable(legacy) == 1 then
+    local wanted = {}
+    for _, ip in ipairs(ips) do
+      wanted[ip] = true
+    end
+    for _, line in ipairs(vim.fn.readfile(legacy)) do
+      local name, ip = line:match("^%s*(%S+)%s+(%S+)")
+      if ip and wanted[ip] and valid(name) then
+        return name, ip
+      end
+    end
+  end
+  return nil
+end
+
+---@param host string|nil
+function GetServerHostName(host)
+  vim.g.host = Nvim.vscode_remote.lookup_host() or host or vim.g.host
   return vim.g.host
 end
 
