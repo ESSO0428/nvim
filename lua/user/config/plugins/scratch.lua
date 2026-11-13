@@ -4,32 +4,110 @@
 vim.keymap.set("n", "<Plug>(snacks-scratch-raw)", function()
   Snacks.scratch()
 end, { desc = "Snacks scratch raw toggle" })
+-- Scratch manager (Oil-like)
+-- Every line carries a hidden id prefix "/<nonce>:<n> " that maps it to a scratch.
+-- The id lives in the text, so dd/p, undo and reordering keep the mapping intact.
+-- Lines without a valid id are new scratches; ids missing from the buffer are deletions.
 local function open_scratch_manager()
-  local scratches = Snacks.scratch.list()
-  local unpack_items = table.unpack or unpack
+  local uv = vim.uv or vim.loop
+  local ns = vim.api.nvim_create_namespace("scratch_manager_id")
+  local scratch_cfg = Snacks.config.get("scratch", { root = Nvim.paths.scratch_dir, filekey = {} })
+  local root_dir = vim.fs.normalize(scratch_cfg.root or Nvim.paths.scratch_dir)
+  local filekey = scratch_cfg.filekey or {}
+
+  -- per-open nonce: ids copied from an older panel are never mistaken for ours
+  local nonce = ""
+  local ok_rand, bytes = pcall(uv.random, 4)
+  if not ok_rand or type(bytes) ~= "string" then
+    bytes = tostring(uv.hrtime()):sub(-4)
+  end
+  for i = 1, 4 do
+    nonce = nonce .. string.char(97 + bytes:byte(i) % 26)
+  end
+
+  ---@type table<string, { scratch: table, meta: string? }>
+  local entries = {}
+  local next_id = 0
+
+  -- identity signature of a scratch's .meta (field based, JSON key order doesn't matter)
+  local function read_meta_text(file)
+    local ok, lines = pcall(vim.fn.readfile, file .. ".meta")
+    if not ok then return nil end
+    local ok_json, m = pcall(vim.json.decode, table.concat(lines, "\n"))
+    if not ok_json or type(m) ~= "table" then return nil end
+    return table.concat({ tostring(m.id), tostring(m.name), tostring(m.ft), tostring(m.count),
+      tostring(m.cwd), tostring(m.branch) }, "\0")
+  end
+
+  local function register(scratch, id)
+    if not id then
+      next_id = next_id + 1
+      id = tostring(next_id)
+    end
+    scratch.stat = nil
+    entries[id] = { scratch = scratch, meta = read_meta_text(scratch.file) }
+    return id
+  end
 
   local function format_scratch_line(sc)
-    local ft_label = sc.ft or "txt"
-    local line = string.format("[%s] %s", ft_label, sc.name or "Scratch")
+    local line = string.format("[%s] %s", sc.ft or "txt", sc.name or "Scratch")
+    if sc.count and sc.count > 1 then line = line .. "  × " .. sc.count end
     if sc.cwd then line = line .. "  @ " .. vim.fn.fnamemodify(sc.cwd, ":~") end
     if sc.branch then line = line .. "  # " .. sc.branch end
     return line
   end
 
-  local buf_lines = {}
-  for _, sc in ipairs(scratches) do
-    table.insert(buf_lines, format_scratch_line(sc))
+  local function render_line(id, sc)
+    return ("/%s:%s "):format(nonce, id) .. format_scratch_line(sc)
   end
 
-  local buf = vim.api.nvim_create_buf(false, true)
-  pcall(vim.api.nvim_buf_set_name, buf, "Scratch_Manager")
+  --- Split a buffer line into (valid id or nil, prefix byte length, rest)
+  local function split_id(line)
+    local n, id, rest = line:match("^/(%l+):(%d+) ?(.*)$")
+    if not n then
+      return nil, 0, line
+    end
+    local plen = #line - #rest
+    if n == nonce and entries[id] then
+      return id, plen, rest
+    end
+    -- stale / foreign id: strip it, the line counts as new
+    return nil, plen, rest
+  end
 
-  -- If no files exist, add a placeholder line to start input
+  -- Parse "[ft] name  × n  @ cwd  # branch" -> name, ft
+  local function parse_line(line)
+    line = vim.trim(line)
+    local end_pos = #line
+    for _, sep in ipairs({ "  × ", "  @ ", "  # " }) do
+      local p = line:find(sep, 1, true)
+      if p then end_pos = math.min(end_pos, p - 1) end
+    end
+    local name_part = vim.trim(line:sub(1, end_pos))
+    local ft = "markdown"
+    local ft_match = name_part:match("^%[(%w+)%]")
+    if ft_match then
+      ft = ft_match
+      name_part = name_part:gsub("^%[%w+%]%s*", "")
+    end
+    return vim.trim(name_part), ft
+  end
+
+  local scratches = Snacks.scratch.list()
+  local buf_lines = {}
+  for _, sc in ipairs(scratches) do
+    table.insert(buf_lines, render_line(register(sc), sc))
+  end
   if #buf_lines == 0 then
     table.insert(buf_lines, "[markdown] new_scratch")
   end
 
+  local buf = vim.api.nvim_create_buf(false, true)
+  pcall(vim.api.nvim_buf_set_name, buf, "Scratch_Manager")
+  -- initial content is not undoable (undo can't empty the list and delete everything on :w)
+  vim.bo[buf].undolevels = -1
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, buf_lines)
+  vim.bo[buf].undolevels = vim.go.undolevels
   vim.bo[buf].modifiable = true
   vim.bo[buf].buftype = "acwrite"
   vim.bo[buf].bufhidden = "wipe"
@@ -48,10 +126,42 @@ local function open_scratch_manager()
     title = " Manage Scratches (<CR>: open, gh: preview toggle, edit freely, undo/redo, :w: apply) ",
     title_pos = "center",
   })
+  vim.wo[win].conceallevel = 3
+  vim.wo[win].concealcursor = "nvic"
 
-  local build_buffer_plan
-  local parse_line
+  -- conceal ids (recomputed from text, so it follows yank/put/undo)
+  local function refresh_conceal()
+    if not vim.api.nvim_buf_is_valid(buf) then return end
+    vim.api.nvim_buf_clear_namespace(buf, ns, 0, -1)
+    for i, line in ipairs(vim.api.nvim_buf_get_lines(buf, 0, -1, false)) do
+      local _, plen = split_id(line)
+      if plen > 0 then
+        vim.api.nvim_buf_set_extmark(buf, ns, i - 1, 0, { end_col = plen, conceal = "" })
+      end
+    end
+  end
+  refresh_conceal()
 
+  local function prefix_len(row)
+    local line = vim.api.nvim_buf_get_lines(buf, row - 1, row, false)[1] or ""
+    local _, plen = split_id(line)
+    return plen, line
+  end
+
+  -- keep the cursor out of the hidden id
+  local function clamp_cursor()
+    if not vim.api.nvim_win_is_valid(win) or vim.api.nvim_get_current_win() ~= win then return end
+    local row, col = unpack(vim.api.nvim_win_get_cursor(win))
+    local plen, line = prefix_len(row)
+    local insert = vim.fn.mode():find("^i") ~= nil
+    if plen > 0 and col < plen and (insert or plen < #line) then
+      vim.api.nvim_win_set_cursor(win, { row, plen })
+    end
+  end
+
+  -- ------------------------------------------------------------------
+  -- Preview
+  -- ------------------------------------------------------------------
   local preview_enabled = false
   local preview_win = nil
   local preview_file = nil
@@ -64,16 +174,11 @@ local function open_scratch_manager()
     end
   end
 
-  local function preview_target_at_cursor()
+  local function scratch_at_cursor()
     local row = vim.api.nvim_win_get_cursor(win)[1]
-    local current_lines, rows = build_buffer_plan()
-    local line = current_lines[row] or ""
-    local current_name = parse_line(line)
-    if current_name == "" then
-      return nil
-    end
-    local row_plan = rows[row]
-    return row_plan and row_plan.kind == "existing" and row_plan.scratch or nil
+    local line = vim.api.nvim_buf_get_lines(buf, row - 1, row, false)[1] or ""
+    local id = split_id(line)
+    return id and entries[id].scratch or nil, id
   end
 
   local function preview_win_opts()
@@ -142,11 +247,9 @@ local function open_scratch_manager()
   end
 
   local function update_preview()
-    if not preview_enabled then
-      return
-    end
+    if not preview_enabled then return end
 
-    local scratch = preview_target_at_cursor()
+    local scratch = scratch_at_cursor()
     if not scratch then
       close_preview()
       return
@@ -179,254 +282,340 @@ local function open_scratch_manager()
     end)
   end
 
-  local original_entries = {}
-  for _, sc in ipairs(scratches) do
-    table.insert(original_entries, { scratch = sc, line = format_scratch_line(sc) })
-  end
-
-  build_buffer_plan = function()
-    local current_lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
-    if #current_lines == 1 and vim.trim(current_lines[1]) == "" then
-      current_lines = {}
-    end
-    local original_lines = {}
-    for _, entry in ipairs(original_entries) do
-      table.insert(original_lines, entry.line)
-    end
-
-    local original_text = #original_lines > 0 and (table.concat(original_lines, "\n") .. "\n") or ""
-    local current_text = #current_lines > 0 and (table.concat(current_lines, "\n") .. "\n") or ""
-    local hunks = vim.diff(original_text, current_text, { result_type = "indices" })
-
-    local rows = {}
-    local deleted = {}
-    local original_row = 1
-    local current_row = 1
-
-    for _, hunk in ipairs(hunks) do
-      local start_original, count_original, start_current, count_current = unpack_items(hunk)
-      local hunk_original_row = math.max(start_original, 1)
-      local hunk_current_row = math.max(start_current, 1)
-
-      while original_row < hunk_original_row and current_row < hunk_current_row do
-        rows[current_row] = { kind = "existing", scratch = original_entries[original_row].scratch }
-        original_row = original_row + 1
-        current_row = current_row + 1
-      end
-
-      local paired = math.min(count_original, count_current)
-      for i = 0, paired - 1 do
-        rows[hunk_current_row + i] = { kind = "existing", scratch = original_entries[hunk_original_row + i].scratch }
-      end
-
-      for i = paired, count_original - 1 do
-        table.insert(deleted, original_entries[hunk_original_row + i].scratch)
-      end
-
-      for i = paired, count_current - 1 do
-        rows[hunk_current_row + i] = { kind = "new" }
-      end
-
-      original_row = hunk_original_row + count_original
-      current_row = hunk_current_row + count_current
-    end
-
-    while original_row <= #original_entries and current_row <= #current_lines do
-      rows[current_row] = { kind = "existing", scratch = original_entries[original_row].scratch }
-      original_row = original_row + 1
-      current_row = current_row + 1
-    end
-
-    while original_row <= #original_entries do
-      table.insert(deleted, original_entries[original_row].scratch)
-      original_row = original_row + 1
-    end
-
-    while current_row <= #current_lines do
-      rows[current_row] = { kind = "new" }
-      current_row = current_row + 1
-    end
-
-    return current_lines, rows, deleted
-  end
-
-  -- Parse a line string to extract [filetype] and filename
-  parse_line = function(line)
-    line = vim.trim(line)
-    local at_pos = line:find("  @ ")
-    local hash_pos = line:find("  # ")
-    local end_pos = #line
-
-    if at_pos then end_pos = math.min(end_pos, at_pos - 1) end
-    if hash_pos then end_pos = math.min(end_pos, hash_pos - 1) end
-
-    local name_part = vim.trim(line:sub(1, end_pos))
-    local ft = "markdown" -- default to markdown if [ft] not specified
-    local ft_match = name_part:match("^%[(%w+)%]")
-    if ft_match then
-      ft = ft_match
-      name_part = name_part:gsub("^%[%w+%]%s*", "")
-    end
-
-    return vim.trim(name_part), ft
-  end
-
-  -- Rename or change filetype
-  local function do_rename(scratch, new_name, new_ft)
-    if scratch.name == new_name and scratch.ft == new_ft then return scratch end
-
-    local old_file = scratch.file
-    local old_meta = scratch.file .. ".meta"
-    local root_dir = vim.fn.fnamemodify(old_file, ":h")
-
-    scratch.name = new_name
-    scratch.ft = new_ft
-    scratch.id = nil
-
-    local key = { scratch.name }
-    key[#key + 1] = scratch.count and tostring(scratch.count) or nil
-    key[#key + 1] = scratch.cwd and scratch.cwd or nil
-    key[#key + 1] = scratch.branch and scratch.branch or nil
-
+  -- ------------------------------------------------------------------
+  -- File operations
+  -- ------------------------------------------------------------------
+  -- same key scheme as Snacks.scratch (_write_meta)
+  local function scratch_file_for(sc)
+    local key = { sc.id or sc.name }
+    key[#key + 1] = sc.count and tostring(sc.count) or nil
+    key[#key + 1] = sc.cwd and sc.cwd or nil
+    key[#key + 1] = sc.branch and sc.branch or nil
     local hash = vim.fn.sha256(table.concat(key, "|")):sub(1, 8)
-    local new_file = vim.fs.normalize(("%s/%s.%s"):format(root_dir, hash, scratch.ft))
-    local new_meta = new_file .. ".meta"
-
-    pcall(os.rename, old_file, new_file)
-    pcall(os.rename, old_meta, new_meta)
-
-    scratch.file = new_file
-    local encoded = vim.json.encode(scratch)
-    if type(encoded) == "string" then
-      vim.fn.writefile(vim.split(encoded, "\n"), new_meta)
-    end
-
-    return scratch
+    return vim.fs.normalize(("%s/%s.%s"):format(root_dir, hash, sc.ft))
   end
 
-  -- Create a brand new scratch
-  local function create_new_scratch(name, ft)
-    -- Use the directory of existing scratches, or fall back to the default data dir
-    local root_dir = original_entries[1] and vim.fn.fnamemodify(original_entries[1].scratch.file, ":h") or
-        Nvim.paths.scratch_dir
-    vim.fn.mkdir(root_dir, "p")
+  local function with_icon(sc)
+    local ok, icon, hl = pcall(Snacks.util.icon, sc.ft, "filetype")
+    if ok and icon then
+      sc.icon, sc.icon_hl = icon, hl
+    end
+    return sc
+  end
 
-    local cwd = vim.fn.getcwd()
-    local branch = nil
-    if vim.fn.isdirectory(".git") == 1 then
+  local function write_meta(sc)
+    local meta = vim.deepcopy(sc)
+    meta.stat = nil
+    meta.file = ""
+    vim.fn.writefile(vim.split(vim.json.encode(meta), "\n"), sc.file .. ".meta")
+  end
+
+  local function new_scratch_table(name, ft)
+    local sc = { name = name, ft = ft, file = "" }
+    if filekey.count ~= false then sc.count = 1 end
+    if filekey.cwd ~= false then sc.cwd = vim.fs.normalize(assert(uv.cwd())) end
+    if filekey.branch ~= false and uv.fs_stat(".git") then
       local out = vim.trim(vim.fn.systemlist("git branch --show-current")[1] or "")
-      if vim.v.shell_error == 0 and out ~= "" then branch = out end
+      if vim.v.shell_error == 0 and out ~= "" then sc.branch = out end
     end
-
-    local key = { name, cwd, branch }
-    local hash = vim.fn.sha256(table.concat(key, "|")):sub(1, 8)
-    local new_file = vim.fs.normalize(("%s/%s.%s"):format(root_dir, hash, ft))
-    local new_meta = new_file .. ".meta"
-
-    local new_scratch = { name = name, ft = ft, file = new_file, cwd = cwd, branch = branch }
-
-    -- Create the physical file and meta file
-    if vim.fn.filereadable(new_file) == 0 then vim.fn.writefile({ "" }, new_file) end
-    local encoded = vim.json.encode(new_scratch)
-    if type(encoded) == "string" then vim.fn.writefile(vim.split(encoded, "\n"), new_meta) end
-
-    return new_scratch
+    with_icon(sc)
+    sc.file = scratch_file_for(sc)
+    return sc
   end
 
-  -- Keymap: <CR>
-  vim.keymap.set("n", "<CR>", function()
-    local row = vim.api.nvim_win_get_cursor(0)[1]
-    local current_lines, rows = build_buffer_plan()
-    local line = current_lines[row] or ""
-    local current_name, current_ft = parse_line(line)
+  -- drop every buffer of this nvim that points at `file`, so autowrite can't recreate it
+  local function release_buffers(file, keep_changes)
+    for _, b in ipairs(vim.api.nvim_list_bufs()) do
+      local bname = vim.api.nvim_buf_get_name(b)
+      if bname ~= "" and vim.fs.normalize(bname) == file then
+        if keep_changes and vim.api.nvim_buf_is_loaded(b) and vim.bo[b].modified then
+          vim.api.nvim_buf_call(b, function() vim.cmd("silent! write") end)
+        end
+        pcall(vim.api.nvim_del_augroup_by_name, "snacks_scratch_autowrite_" .. b)
+        pcall(vim.api.nvim_del_augroup_by_name, "snacks_scratch_preview_autowrite_" .. b)
+        pcall(vim.api.nvim_buf_delete, b, { force = true })
+      end
+    end
+  end
 
-    if current_name == "" then return end
+  -- Build the plan from the buffer: which rows are existing / new, which ids are deleted
+  local function build_plan()
+    local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
+    local rows, seen, errors = {}, {}, {}
 
-    local row_plan = rows[row]
-    local scratch = row_plan and row_plan.kind == "existing" and row_plan.scratch or nil
+    for row, line in ipairs(lines) do
+      local id, _, rest = split_id(line)
+      local name, ft = parse_line(rest)
+      if name ~= "" then
+        local item = { row = row, name = name, ft = ft }
+        if id then
+          if seen[id] then
+            table.insert(errors, row)
+          else
+            seen[id] = true
+            item.id = id
+          end
+        end
+        table.insert(rows, item)
+      end
+    end
+
+    local deleted = {}
+    for id, entry in pairs(entries) do
+      if not seen[id] then
+        table.insert(deleted, { id = id, scratch = entry.scratch })
+      end
+    end
+
+    -- id accidentally removed (cc, d0, ...) but same name/ft retyped: keep the original scratch
+    for _, item in ipairs(rows) do
+      if not item.id then
+        for i, d in ipairs(deleted) do
+          if d.scratch.name == item.name and d.scratch.ft == item.ft then
+            item.id = d.id
+            table.remove(deleted, i)
+            break
+          end
+        end
+      end
+    end
+
+    return rows, deleted, errors
+  end
+
+  local function save()
+    local rows, deleted, errors = build_plan()
+
+    if #errors > 0 then
+      vim.notify(
+        ("Scratch: 第 %s 行是複製出來的項目（yy/p），請刪除，或用 o 新增一行"):format(table.concat(errors, ", ")),
+        vim.log.levels.ERROR
+      )
+      return false
+    end
+
+    -- something changed these scratches outside this panel (another nvim?)
+    local function changed_elsewhere(id)
+      local e = entries[id]
+      return not uv.fs_stat(e.scratch.file) or read_meta_text(e.scratch.file) ~= e.meta
+    end
+    for _, item in ipairs(rows) do
+      if item.id and changed_elsewhere(item.id) then
+        vim.notify("Scratch: 「" .. entries[item.id].scratch.name .. "」已在別處變動，請關閉後重開面板", vim.log.levels.ERROR)
+        return false
+      end
+    end
+    for _, d in ipairs(deleted) do
+      if changed_elsewhere(d.id) then
+        vim.notify("Scratch: 「" .. d.scratch.name .. "」已在別處變動，請關閉後重開面板", vim.log.levels.ERROR)
+        return false
+      end
+    end
+
+    -- compute targets
+    local freed = {} -- files that will be moved away or deleted
+    for _, d in ipairs(deleted) do freed[d.scratch.file] = true end
+
+    local renames, creates, targets = {}, {}, {}
+    for _, item in ipairs(rows) do
+      if item.id then
+        local sc = entries[item.id].scratch
+        if sc.name ~= item.name or sc.ft ~= item.ft then
+          local updated = vim.deepcopy(sc)
+          updated.name, updated.ft, updated.id = item.name, item.ft, nil
+          with_icon(updated)
+          updated.file = scratch_file_for(updated)
+          item.target = updated
+          if updated.file ~= sc.file then
+            freed[sc.file] = true
+            table.insert(renames, { from = sc.file, sc = updated })
+          end
+        else
+          item.target = sc
+        end
+      else
+        item.target = new_scratch_table(item.name, item.ft)
+        table.insert(creates, item.target)
+      end
+      local f = item.target.file
+      if targets[f] then
+        vim.notify(("Scratch: 第 %d 行與第 %d 行會對應到同一個 scratch（%s）"):format(targets[f], item.row, item.name),
+          vim.log.levels.ERROR)
+        return false
+      end
+      targets[f] = item.row
+    end
+
+    local function occupied(f)
+      return not freed[f] and (uv.fs_stat(f) or uv.fs_stat(f .. ".meta"))
+    end
+    for _, r in ipairs(renames) do
+      if occupied(r.sc.file) then
+        vim.notify("Scratch: 已存在名為「" .. r.sc.name .. "」的 scratch，取消套用", vim.log.levels.ERROR)
+        return false
+      end
+    end
+    for _, sc in ipairs(creates) do
+      if occupied(sc.file) then
+        vim.notify("Scratch: 已存在名為「" .. sc.name .. "」的 scratch，取消套用", vim.log.levels.ERROR)
+        return false
+      end
+    end
+
+    if #deleted > 0 then
+      local names = {}
+      for _, d in ipairs(deleted) do table.insert(names, "  - " .. format_scratch_line(d.scratch)) end
+      local choice = vim.fn.confirm(
+        ("將刪除 %d 個 scratch：\n%s"):format(#deleted, table.concat(names, "\n")), "&Yes\n&No", 2)
+      if choice ~= 1 then
+        vim.notify("Scratch: 已取消", vim.log.levels.WARN)
+        return false
+      end
+    end
+
+    -- release buffers first (preview window writes its buffer when hidden)
+    local was_preview = preview_enabled
+    close_preview()
+    for _, d in ipairs(deleted) do release_buffers(d.scratch.file, false) end
+    for _, r in ipairs(renames) do release_buffers(r.from, true) end
+
+    for _, d in ipairs(deleted) do
+      os.remove(d.scratch.file)
+      os.remove(d.scratch.file .. ".meta")
+    end
+
+    -- two-phase rename so swapping names never overwrites a file
+    local tmp_suffix = ".scratch-tmp-" .. nonce
+    for _, r in ipairs(renames) do
+      os.rename(r.from, r.from .. tmp_suffix)
+      os.remove(r.from .. ".meta")
+    end
+    for _, r in ipairs(renames) do
+      os.rename(r.from .. tmp_suffix, r.sc.file)
+      write_meta(r.sc)
+    end
+
+    for _, sc in ipairs(creates) do
+      vim.fn.writefile({ "" }, sc.file)
+      write_meta(sc)
+    end
+
+    -- rebuild entries: existing ids are kept so undo still maps correctly
+    local new_entries = {}
+    local display = {}
+    entries = new_entries
+    for _, item in ipairs(rows) do
+      local id = register(item.target, item.id)
+      table.insert(display, render_line(id, item.target))
+    end
+
+    vim.api.nvim_buf_set_lines(buf, 0, -1, false, display)
+    vim.bo[buf].modified = false
+    refresh_conceal()
+    clamp_cursor()
+    preview_enabled = was_preview
+    update_preview()
+
+    local msg = ("Scratch panel saved! (重新命名 %d、新增 %d、刪除 %d)"):format(#renames, #creates, #deleted)
+    vim.notify(msg, vim.log.levels.INFO)
+    return true
+  end
+
+  -- ------------------------------------------------------------------
+  -- Keymaps & autocmds
+  -- ------------------------------------------------------------------
+  local function bmap(mode, lhs, rhs, opts)
+    opts = vim.tbl_extend("force", { buffer = buf }, opts or {})
+    vim.keymap.set(mode, lhs, rhs, opts)
+  end
+
+  bmap("n", "<CR>", function()
+    local row = vim.api.nvim_win_get_cursor(win)[1]
+    local line = vim.api.nvim_buf_get_lines(buf, row - 1, row, false)[1] or ""
+    local id, _, rest = split_id(line)
+    if parse_line(rest) == "" then return end
+    if (vim.bo[buf].modified or not id) and not save() then return end
+    local scratch = scratch_at_cursor()
+    if not scratch then return end
 
     preview_enabled = false
     close_preview()
     vim.api.nvim_win_close(win, true)
+    Snacks.scratch.open({ file = scratch.file, ft = scratch.ft, name = scratch.name })
+  end, { desc = "Open Scratch" })
 
-    if scratch then
-      scratch = do_rename(scratch, current_name, current_ft)
-      Snacks.scratch.open({ file = scratch.file, ft = scratch.ft, name = scratch.name })
-    else
-      -- New line: hand directly to Snacks to open and create
-      Snacks.scratch.open({ name = current_name, ft = current_ft })
-    end
-  end, { buffer = buf, desc = "Open Scratch" })
-
-  vim.keymap.set("n", "gh", function()
+  bmap("n", "gh", function()
     preview_enabled = not preview_enabled
     if preview_enabled then
       update_preview()
     else
       close_preview()
     end
-  end, { buffer = buf, desc = "Toggle Scratch Preview" })
+  end, { desc = "Toggle Scratch Preview" })
 
-  vim.keymap.set("n", "<C-u>", function()
-    scroll_preview("<C-u>")
-  end, { buffer = buf, desc = "Scroll Preview Up" })
+  bmap("n", "<C-u>", function() scroll_preview("<C-u>") end, { desc = "Scroll Preview Up" })
+  bmap("n", "<C-o>", function() scroll_preview("<C-d>", "<C-o>") end, { desc = "Scroll Preview Down" })
 
-  vim.keymap.set("n", "<C-o>", function()
-    scroll_preview("<C-d>", "<C-o>")
-  end, { buffer = buf, desc = "Scroll Preview Down" })
+  -- editing keys that would otherwise eat into the hidden id
+  local function chars_after_prefix()
+    local row, col = unpack(vim.api.nvim_win_get_cursor(0))
+    local plen, line = prefix_len(row)
+    return plen, line, col
+  end
 
-  vim.api.nvim_create_autocmd({ "CursorMoved", "CursorMovedI", "TextChanged", "TextChangedI" }, {
-    buffer = buf,
-    callback = update_preview,
-  })
+  bmap("i", "<BS>", function()
+    local plen, _, col = chars_after_prefix()
+    return col <= plen and "" or "<BS>"
+  end, { expr = true, desc = "Backspace (keep id)" })
 
-  -- Event: :w batch save/create
-  vim.api.nvim_create_autocmd("BufWriteCmd", {
+  bmap("i", "<C-u>", function()
+    local plen, line, col = chars_after_prefix()
+    if col <= plen then return "" end
+    return string.rep("<BS>", vim.fn.strchars(line:sub(plen + 1, col)))
+  end, { expr = true, desc = "Delete to line start (keep id)" })
+
+  bmap("i", "<C-w>", function()
+    local plen, line, col = chars_after_prefix()
+    if col <= plen then return "" end
+    local before = line:sub(plen + 1, col)
+    local kept = before:gsub("%s+$", ""):gsub("%S+$", "")
+    local n = vim.fn.strchars(before) - vim.fn.strchars(kept)
+    return string.rep("<BS>", n > 0 and n or vim.fn.strchars(before))
+  end, { expr = true, desc = "Delete word (keep id)" })
+
+  for _, lhs in ipairs({ "cc", "S" }) do
+    bmap("n", lhs, function()
+      local row = vim.api.nvim_win_get_cursor(0)[1]
+      local plen = prefix_len(row)
+      if plen == 0 then return lhs end
+      return (plen + 1) .. "|C"
+    end, { expr = true, desc = "Change line (keep id)" })
+  end
+
+  bmap({ "n", "x", "o" }, "0", function()
+    local plen = prefix_len(vim.api.nvim_win_get_cursor(0)[1])
+    return plen > 0 and ((plen + 1) .. "|") or "0"
+  end, { expr = true, desc = "Line start (after id)" })
+
+  vim.api.nvim_create_autocmd({ "CursorMoved", "CursorMovedI" }, {
     buffer = buf,
     callback = function()
-      local lines, rows, deleted = build_buffer_plan()
-      local saved_entries = {}
-      local display_lines = {}
-
-      for row, line in ipairs(lines) do
-        local new_name, new_ft = parse_line(line)
-        if new_name ~= "" then
-          local row_plan = rows[row]
-          local scratch = row_plan and row_plan.kind == "existing" and row_plan.scratch or nil
-          if scratch then
-            scratch = do_rename(scratch, new_name, new_ft)
-          else
-            scratch = create_new_scratch(new_name, new_ft)
-          end
-
-          table.insert(saved_entries, { scratch = scratch, line = format_scratch_line(scratch) })
-          table.insert(display_lines, format_scratch_line(scratch))
-        end
-      end
-
-      local deleted_count = 0
-      for _, scratch in ipairs(deleted) do
-        pcall(os.remove, scratch.file)
-        pcall(os.remove, scratch.file .. ".meta")
-        deleted_count = deleted_count + 1
-      end
-
-      original_entries = saved_entries
-
-      if #display_lines == 0 then
-        vim.api.nvim_buf_set_lines(buf, 0, -1, false, {})
-      else
-        vim.api.nvim_buf_set_lines(buf, 0, -1, false, display_lines)
-      end
-
-      vim.bo[buf].modified = false
+      clamp_cursor()
       update_preview()
-      if deleted_count > 0 then
-        vim.notify(string.format("Scratch panel saved! Deleted %d scratch(es).", deleted_count), vim.log.levels.INFO)
-      else
-        vim.notify("Scratch panel saved!", vim.log.levels.INFO)
-      end
-    end
+    end,
+  })
+
+  vim.api.nvim_create_autocmd({ "TextChanged", "TextChangedI" }, {
+    buffer = buf,
+    callback = function()
+      refresh_conceal()
+      update_preview()
+    end,
+  })
+
+  vim.api.nvim_create_autocmd("BufWriteCmd", {
+    buffer = buf,
+    callback = function() save() end,
   })
 
   local close_ui = function()
@@ -435,8 +624,8 @@ local function open_scratch_manager()
     vim.bo[buf].modified = false
     vim.cmd("close")
   end
-  vim.keymap.set("n", "q", close_ui, { buffer = buf, desc = "Close" })
-  vim.keymap.set("n", "<Esc>", close_ui, { buffer = buf, desc = "Close" })
+  bmap("n", "q", close_ui, { desc = "Close" })
+  bmap("n", "<Esc>", close_ui, { desc = "Close" })
 
   vim.api.nvim_create_autocmd("WinClosed", {
     pattern = tostring(win),
@@ -452,8 +641,10 @@ local function open_scratch_manager()
     callback = function()
       preview_enabled = false
       close_preview()
-    end
+    end,
   })
+
+  clamp_cursor()
 end
 
 Nvim.keys.normal_mode["<leader>r."] = {
