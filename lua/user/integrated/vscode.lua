@@ -17,41 +17,66 @@ function M.is_match_exclude_hostname(hostname)
   return is_match_exclude_hostname_bool
 end
 
-function _G.code(file)
-  local buffers = vim.api.nvim_list_bufs()
-  local fileNames = {}
-  if file == '' or file == nil then
-    for _, buffer in ipairs(buffers) do
-      if (vim.api.nvim_buf_is_valid(buffer) and vim.bo[buffer].buflisted) then
-        local fileName = vim.api.nvim_buf_get_name(buffer)
+--- Quote an argument for PowerShell (single quotes, `'` doubled) when needed
+local function ps_quote(arg)
+  if arg:find("[%s'`\"$&|;(){}<>,@#]") then
+    return "'" .. arg:gsub("'", "''") .. "'"
+  end
+  return arg
+end
 
-        if (vim.api.nvim_get_current_buf() == buffer) then
-          local location = vim.api.nvim_win_get_cursor(0)
-          fileName = fileName .. ":" .. location[1] .. ":" .. location[2] + 1
-          table.insert(fileNames, 1, fileName)
+--- Collect `file:line:col` targets.
+--- nil / "" -> all listed file buffers (current buffer first, with cursor position)
+--- "%"      -> current buffer
+--- other    -> given file, with the current cursor position
+---@param file string|nil
+---@return string[]
+local function collect_targets(file)
+  local location = vim.api.nvim_win_get_cursor(0)
+  local function with_pos(name)
+    return name .. ":" .. location[1] .. ":" .. location[2] + 1
+  end
+
+  local targets = {}
+  if file == "" or file == nil then
+    local current = vim.api.nvim_get_current_buf()
+    for _, buffer in ipairs(vim.api.nvim_list_bufs()) do
+      local name = vim.api.nvim_buf_get_name(buffer)
+      -- skip unnamed / special buffers (terminal, scratch, help...)
+      if vim.api.nvim_buf_is_valid(buffer) and vim.bo[buffer].buflisted
+          and vim.bo[buffer].buftype == "" and name ~= "" then
+        if buffer == current then
+          table.insert(targets, 1, with_pos(name))
         else
-          table.insert(fileNames, fileName)
+          table.insert(targets, name)
         end
       end
     end
   elseif file == "%" then
-    local fileName = vim.fn.expand("%:p")
-    local location = vim.api.nvim_win_get_cursor(0)
-    fileName = fileName .. ":" .. location[1] .. ":" .. location[2] + 1
-
-    table.insert(fileNames, fileName)
+    local name = vim.fn.expand("%:p")
+    if name ~= "" then
+      table.insert(targets, with_pos(name))
+    end
   else
-    local fileName = file
-    local location = vim.api.nvim_win_get_cursor(0)
-    fileName = fileName .. ":" .. location[1] .. ":" .. location[2] + 1
-    table.insert(fileNames, fileName)
+    table.insert(targets, with_pos(file))
   end
+  return targets
+end
+
+function _G.code(file)
+  local targets = collect_targets(file)
 
   local cwd = vim.fn.getcwd()
   if not cwd:find("/$") then
     cwd = cwd .. "/"
   end
-  vim.cmd("!code -g " .. cwd .. " " .. table.concat(fileNames, " "))
+
+  -- shellescape(…, true) also escapes `!`, `%`, `#` for :!
+  local args = { "code", "-g", vim.fn.shellescape(cwd, true) }
+  for _, target in ipairs(targets) do
+    table.insert(args, vim.fn.shellescape(target, true))
+  end
+  vim.cmd("!" .. table.concat(args, " "))
 end
 
 -- 與 `vscode remote ssh` 集成
@@ -68,82 +93,44 @@ function _G.rcode(file)
   local host = GetServerHostName(M.host)
   M.host = host
 
-  local buffers = vim.api.nvim_list_bufs()
-  local fileNames = {}
-  if file == '' or file == nil then
-    for _, buffer in ipairs(buffers) do
-      if (vim.api.nvim_buf_is_valid(buffer) and vim.bo[buffer].buflisted) then
-        local fileName = vim.api.nvim_buf_get_name(buffer)
-
-        if (vim.api.nvim_get_current_buf() == buffer) then
-          local location = vim.api.nvim_win_get_cursor(0)
-          fileName = fileName .. ":" .. location[1] .. ":" .. location[2] + 1
-          -- fileName = fileName
-          table.insert(fileNames, 1, fileName)
-        else
-          table.insert(fileNames, fileName)
-        end
-      end
-    end
-  elseif file == "%" then
-    local fileName = vim.fn.expand("%:p")
-    local location = vim.api.nvim_win_get_cursor(0)
-    fileName = fileName .. ":" .. location[1] .. ":" .. location[2] + 1
-    table.insert(fileNames, fileName)
-  else
-    local fileName = file
-    local location = vim.api.nvim_win_get_cursor(0)
-    fileName = fileName .. ":" .. location[1] .. ":" .. location[2] + 1
-    table.insert(fileNames, fileName)
-  end
+  local targets = collect_targets(file)
   local cwd = vim.fn.getcwd()
   if cwd:find("/$") then
     cwd = cwd:sub(1, -2)
   end
-  local buf = vim.api.nvim_create_buf(false, true)
-  -- local str = "code --remote ssh-remote+" .. host .. " -g " .. cwd .. " " .. table.concat(fileNames, " ")
-  -- local lines = vim.split(str, "\n")
-  -- vim.api.nvim_buf_set_lines(buf, 0, -1, true, lines)
-  -- vim.cmd("edit! " .. vim.api.nvim_buf_get_name(buf))
-  -- local str = "code --remote ssh-remote+" .. host .. " `\n" .. cwd .. " `\n" .. table.concat(fileNames, " `\n")
 
-  -- local str = "code --remote ssh-remote+" ..
-  --     host .. " `\n" .. cwd .. " `\n" .. "-g `\n" .. table.concat(fileNames, " `\n")
-
-  local is_match_exclude_hostname_bool = M.is_match_exclude_hostname(M.host)
   local str
-  if is_match_exclude_hostname_bool == 1 then
-    is_match_exclude_hostname_bool = M.is_match_exclude_hostname(M.host)
-    if is_match_exclude_hostname_bool == 1 then
-      str = "Failed : Not found usefull hostname\n" ..
-          "Use left command to Update hostname from Windows PC sshconfig to current Server :UpdateRegisterHostHameFromLocal\n"
-          ..
-          "P.S. : Check local open reverse ssh port to current remote server"
+  if M.is_match_exclude_hostname(M.host) == 1 then
+    str = "Failed : Not found usefull hostname\n" ..
+        "Use left command to Update hostname from Windows PC sshconfig to current Server :UpdateRegisterHostHameFromLocal\n"
+        ..
+        "P.S. : Check local open reverse ssh port to current remote server"
+  else
+    -- 将主机名转换为 JSON 格式，再转换为十六进制编码
+    local jsonHost = '{"hostName":"' .. M.host .. '"}'
+    local hexHost = M.encodeHostname(jsonHost)
+    local quoted = {}
+    for _, target in ipairs(targets) do
+      table.insert(quoted, ps_quote(target))
     end
-  end
-
-  -- 将字符串转换为十六进制编码
-  if is_match_exclude_hostname_bool == -1 then
-    local jsonHost = '{"hostName":"' .. M.host .. '"}' -- 将主机名转换为 JSON 格式
-    local hexHost = M.encodeHostname(jsonHost)         -- 调用 encodeHostname 函数
-    str = "code --remote ssh-remote+" ..
-        hexHost .. " `\n" .. cwd
+    str = "code --remote ssh-remote+" .. hexHost .. " `\n" .. ps_quote(cwd)
     str = str .. "; `\n" ..
         str ..
-        " `\n" .. "-g `\n" .. table.concat(fileNames, " `\n")
-    local command = "$command = \'" .. str .. "\'; Invoke-Expression $command"
-    -- print(command)
+        " `\n" .. "-g `\n" .. table.concat(quoted, " `\n")
   end
+
   -- 將指令字串寫入檔案
-  local logFile = vim.fn.expand('~/.NeovimVscode.log')
-  local f = io.open(logFile, 'w')
+  local logFile = vim.fn.expand("~/.NeovimVscode.log")
+  local f, err = io.open(logFile, "w")
+  if not f then
+    vim.notify("rcode: cannot write " .. logFile .. ": " .. tostring(err), vim.log.levels.ERROR)
+    return
+  end
   f:write(str)
   f:close()
 
   -- 使用tabnew命令打開新標籤頁顯示檔案
-  vim.cmd('tabnew ' .. logFile)
-
-  -- print("code --remote ssh-remote+" .. M.host .. " -g " .. cwd .. " " .. table.concat(fileNames, " "))
+  vim.cmd("tabnew " .. vim.fn.fnameescape(logFile))
 end
 
 return M

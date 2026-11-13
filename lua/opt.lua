@@ -334,7 +334,7 @@ function GetServerHostName(host)
   return vim.g.host
 end
 
-GetServerHostName(vim.g.host)
+-- `rcode` resolves the host on demand, so avoid shell/file IO on every startup.
 
 -- terminal events
 local term_group = vim.api.nvim_create_augroup("TerminalEvents", { clear = true })
@@ -373,4 +373,11 @@ vim.api.nvim_create_autocmd("User", {
   end,
 })
 
+-- DownloadToLocal / UpdateRegisterHostHameFromLocal (vscode remote ssh helpers)
+vim.schedule(function()
+  local file = vim.fs.joinpath(vim.fn.stdpath("config"), "vim/ssh_command.vim")
+  if vim.fn.filereadable(file) == 1 then
+    vim.cmd("source " .. vim.fn.fnameescape(file))
+  end
+end)
 vim.cmd("source " .. vim.fn.stdpath("config") .. "/keymap.vim")
