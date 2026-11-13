@@ -1018,8 +1018,15 @@ local plugins = {
             sql = { "copilot", "dadbod", "path", "buffer" },
             mysql = { "copilot", "dadbod", "path", "buffer" },
             plsql = { "copilot", "dadbod", "path", "buffer" },
+            -- claude_skills 只在 Claude Code 的 claude-prompt-*.md 啟用（見 source 的 enabled）
+            markdown = { inherit_defaults = true, "claude_skills" },
           },
           providers = {
+            claude_skills = {
+              name = "Claude",
+              module = "user.blink.claude_skills",
+              score_offset = 100,
+            },
             lazydev = {
               name = "lazydev",
               module = "lazydev.integrations.blink",
