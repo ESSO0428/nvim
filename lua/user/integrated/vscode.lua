@@ -81,23 +81,22 @@ end
 
 -- ------------------------------------------------------------------
 -- Reverse ssh tunnel
--- ~/.rssh_tunnel 存 port；WSL 端是 `ncat -l --keep-open <port> -e /bin/sh`（reverse-ssh-tunnel-manager）
+-- port 由 Nvim.vscode_remote.tunnel_port() 查（~/.ssh/rssh_tunnel.d/<本機 IP>，或舊的 ~/.rssh_tunnel）
+-- WSL 端是 `ncat -l --keep-open <port> -e /bin/sh`（reverse-ssh-tunnel-manager）
 -- sh 的輸出會沿同一條連線傳回來，所以可以「送指令到 WSL 並拿回結果」
 -- ------------------------------------------------------------------
-M.tunnel_file = vim.fn.expand("~/.rssh_tunnel")
-
 local function sh_quote(s)
   return "'" .. s:gsub("'", [['\'']]) .. "'"
 end
 
 ---@return string|nil port, string|nil err
 function M.tunnel_port()
-  if vim.fn.filereadable(M.tunnel_file) == 0 then
-    return nil, "找不到 " .. M.tunnel_file .. "（請先在 WSL 執行 reverse-ssh-tunnel-manager）"
+  local port, source = Nvim.vscode_remote.tunnel_port()
+  if not source then
+    return nil, "找不到 tunnel port（請先在 WSL 執行 reverse-ssh-tunnel-manager）"
   end
-  local port = vim.trim(vim.fn.readfile(M.tunnel_file, "", 1)[1] or "")
-  if not port:match("^%d+$") then
-    return nil, M.tunnel_file .. " 沒有 port（tunnel 已關閉？）"
+  if not port then
+    return nil, source .. " 沒有 port（tunnel 已關閉？）"
   end
   if vim.fn.executable("nc") == 0 then
     return nil, "這台 server 沒有 nc"

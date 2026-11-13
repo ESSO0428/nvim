@@ -313,9 +313,14 @@ function Nvim.vscode_remote.valid_host_alias(name)
   return type(name) == "string" and name:match("^[%w._-]+$") ~= nil
 end
 
---- Local IPv4 addresses, primary (default route source) first
+--- Local IPv4 addresses, primary (default route source) first.
+--- Cached for the session (im-select calls this on every InsertEnter/Leave); `refresh` re-detects.
+---@param refresh? boolean
 ---@return string[]
-function Nvim.vscode_remote.local_ipv4s()
+function Nvim.vscode_remote.local_ipv4s(refresh)
+  if Nvim.vscode_remote._ips and not refresh then
+    return Nvim.vscode_remote._ips
+  end
   local ips, seen = {}, {}
   local function add(ip)
     if ip and not seen[ip] then
@@ -345,7 +350,38 @@ function Nvim.vscode_remote.local_ipv4s()
       end
     end
   end
+  if #ips > 0 then
+    Nvim.vscode_remote._ips = ips
+  end
   return ips
+end
+
+-- reverse ssh tunnel port（reverse-ssh-tunnel-manager 寫入）
+--   1. ~/.ssh/rssh_tunnel.d/<本機 IP>：每台 server 各自一個檔，共用 NFS home 也不會互相覆蓋
+--   2. 舊的 ~/.rssh_tunnel：只在沒有任何 per-IP 檔時才使用（舊版 manager）
+-- per-IP 檔存在但是空的 = tunnel 已關閉，不退回舊檔（舊檔可能是別台 server 的 port）
+Nvim.vscode_remote.tunnel_dir = vim.fn.expand("~/.ssh/rssh_tunnel.d")
+Nvim.vscode_remote.legacy_tunnel_file = vim.fn.expand("~/.rssh_tunnel")
+
+---@return string|nil port, string|nil source_file
+function Nvim.vscode_remote.tunnel_port()
+  local function read_port(file)
+    local ok, lines = pcall(vim.fn.readfile, file, "", 1)
+    local port = ok and vim.trim(lines[1] or "") or ""
+    return port:match("^%d+$") and port or nil
+  end
+
+  for _, ip in ipairs(Nvim.vscode_remote.local_ipv4s()) do
+    local file = Nvim.vscode_remote.tunnel_dir .. "/" .. ip
+    if vim.fn.filereadable(file) == 1 then
+      return read_port(file), file
+    end
+  end
+  local legacy = Nvim.vscode_remote.legacy_tunnel_file
+  if vim.fn.filereadable(legacy) == 1 then
+    return read_port(legacy), legacy
+  end
+  return nil
 end
 
 --- Registered Host alias for this server

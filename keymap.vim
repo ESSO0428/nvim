@@ -503,12 +503,10 @@ function! SendInputMethodCommandToLocal(mode)
   if &ft == 'TelescopePrompt'
     return
   endif
-  " 檢查~/.rssh_tunnel文件是否存在
-  if filereadable(expand("~/.rssh_tunnel"))
-    " 讀取文件內容以獲取端口號
-    let file_content = readfile(expand("~/.rssh_tunnel"))
-    if len(file_content) > 0
-      let port = file_content[0]
+  " 這台 server 的 tunnel port（~/.ssh/rssh_tunnel.d/<IP>，或舊的 ~/.rssh_tunnel；NFS 共用 home 也不會讀到別台的）
+  let port = luaeval('Nvim.vscode_remote and Nvim.vscode_remote.tunnel_port() or ""')
+  if !empty(port)
+    if port =~# '^\d\+$'
       let netstat_connect_command = "netstat -tuln | grep -q '127.0.0.1:" . port . "' && echo success"
       let nc_connect_results = substitute(system(netstat_connect_command), '\n', '', '')
       if nc_connect_results == 'success'

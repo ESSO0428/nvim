@@ -26,8 +26,9 @@ function! DownloadToLocal(file)
 
   let current_file = empty(file) || file ==# '%' ? expand('%:p') : file
 
-  if filereadable(expand("~/.rssh_tunnel"))
-    let port = readfile(expand("~/.rssh_tunnel"))[0]
+  " 這台 server 的 tunnel port（~/.ssh/rssh_tunnel.d/<IP>，或舊的 ~/.rssh_tunnel）
+  let port = luaeval('Nvim.vscode_remote and Nvim.vscode_remote.tunnel_port() or ""')
+  if !empty(port)
     let netstat_cmd = "netstat -tuln | grep -q '127.0.0.1:" . port . "' && echo success"
     let tunnel_status = substitute(system(netstat_cmd), '\n', '', '')
 
