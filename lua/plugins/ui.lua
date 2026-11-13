@@ -625,12 +625,16 @@ return {
           component_separators = { left = "", right = "" },
           section_separators = { left = "", right = "" },
           -- 新版 lualine 預設會用較積極的 refresh 機制，容易覆蓋 rainbow_csv
-          -- 暫時接管 statusline 的提示；這裡改成較保守的刷新設定。
+          -- 暫時接管 statusline 的提示；這裡排除 CursorMoved / CursorMovedI（游標每動一次就刷新）。
+          -- refresh_time 是「事件佇列」的檢查間隔：事件只會排隊，等這個 timer 才真的刷新，
+          -- 設成 1000 會讓所有事件刷新延遲最多 1 秒，所以維持預設 16ms。
+          -- ModeChanged 必須保留，否則 normal/insert 切換要等 statusline 的 1 秒定時刷新。
+          -- （rainbow_csv 接管 statusline 時由下方的 laststatus 暫停機制處理）
           refresh = {
             statusline = 1000,
             tabline = 1000,
             winbar = 1000,
-            refresh_time = 1000,
+            refresh_time = 16,
             events = {
               "WinEnter",
               "BufEnter",
@@ -639,6 +643,7 @@ return {
               "FileChangedShellPost",
               "VimResized",
               "Filetype",
+              "ModeChanged",
             },
           },
         },
