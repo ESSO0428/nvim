@@ -79,14 +79,59 @@ function _G.code(file)
   vim.cmd("!" .. table.concat(args, " "))
 end
 
+-- ------------------------------------------------------------------
+-- Reverse ssh tunnel
+-- ~/.rssh_tunnel 存 port；WSL 端是 `ncat -l --keep-open <port> -e /bin/sh`（reverse-ssh-tunnel-manager）
+-- sh 的輸出會沿同一條連線傳回來，所以可以「送指令到 WSL 並拿回結果」
+-- ------------------------------------------------------------------
+M.tunnel_file = vim.fn.expand("~/.rssh_tunnel")
+
+local function sh_quote(s)
+  return "'" .. s:gsub("'", [['\'']]) .. "'"
+end
+
+---@return string|nil port, string|nil err
+function M.tunnel_port()
+  if vim.fn.filereadable(M.tunnel_file) == 0 then
+    return nil, "找不到 " .. M.tunnel_file .. "（請先在 WSL 執行 reverse-ssh-tunnel-manager）"
+  end
+  local port = vim.trim(vim.fn.readfile(M.tunnel_file, "", 1)[1] or "")
+  if not port:match("^%d+$") then
+    return nil, M.tunnel_file .. " 沒有 port（tunnel 已關閉？）"
+  end
+  if vim.fn.executable("nc") == 0 then
+    return nil, "這台 server 沒有 nc"
+  end
+  return port
+end
+
+--- Run a shell command on the WSL side through the tunnel; cb(stdout) runs on the main loop
+---@param remote_cmd string
+---@param cb fun(out: string)
+---@return boolean started, string|nil err
+function M.tunnel_exec(remote_cmd, cb)
+  local port, err = M.tunnel_port()
+  if not port then
+    return false, err
+  end
+  -- keep stdin open until the WSL side answers and closes; the echo loop ends via SIGPIPE once nc exits
+  local script = [[(printf '%s\nexit\n' "$1"; i=0; while [ $i -lt 40 ]; do sleep 0.2; echo; i=$((i+1)); done) | nc -w 10 127.0.0.1 "$2"]]
+  vim.system({ "sh", "-c", script, "sh", remote_cmd, port }, { text = true, timeout = 20000 },
+    vim.schedule_wrap(function(res)
+      cb(res.stdout or "")
+    end))
+  return true
+end
+
 -- 與 `vscode remote ssh` 集成
 -- 取得如範例的指令: `code --remote ssh-remote+LabServerDP`
--- 通過讀取 `~/.ssh/host_names` 文件，來取得對上述 `hostname`
--- 如果 `~/.ssh/host_names` 文件`不存在`或`格式有誤`則使用預設的 `vim.g.host`
--- 或是最後一次使用的 hostname，這些 name 將後將寫入 `vim.g.host`
+-- hostname 由 GetServerHostName() 查 ~/.ssh/host_names.d/<本機 IP>（或舊的 ~/.ssh/host_names）
+-- ---
+-- 有 reverse ssh tunnel 時，直接請 WSL 呼叫 powershell.exe 在 Windows 開啟 VS Code；
+-- 沒有 tunnel 或執行失敗時，照舊把指令寫入 ~/.NeovimVscode.log 並開啟，讓你複製到 PowerShell。
+-- 設 `vim.g.rcode_via_tunnel = false` 可停用自動執行。
 -- ---
 -- 特別注意 `vim.g.host` 若使用範例的 `YourVscodeReomoteServerName` 會被視為排除對象
--- ---
 -- 找不到 `hostname` 或是 `hostname` 為排除對象，則會報錯提醒如何更新 `hostname`
 ---@param file string | nil
 function _G.rcode(file)
@@ -99,45 +144,76 @@ function _G.rcode(file)
     cwd = cwd:sub(1, -2)
   end
 
-  local str
-  if M.is_match_exclude_hostname(M.host) == 1 then
-    str = "Failed : Not found usefull hostname\n" ..
-        "Use left command to Update hostname from Windows PC sshconfig to current Server :UpdateRegisterHostHameFromLocal\n"
-        ..
-        "P.S. : Check local open reverse ssh port to current remote server"
-  else
-    -- 将主机名转换为 JSON 格式，再转换为十六进制编码
-    local jsonHost = '{"hostName":"' .. M.host .. '"}'
-    local hexHost = M.encodeHostname(jsonHost)
-    local quoted = {}
-    for _, target in ipairs(targets) do
-      table.insert(quoted, ps_quote(target))
+  local function show_log(str)
+    local logFile = vim.fn.expand("~/.NeovimVscode.log")
+    local f, err = io.open(logFile, "w")
+    if not f then
+      vim.notify("rcode: cannot write " .. logFile .. ": " .. tostring(err), vim.log.levels.ERROR)
+      return
     end
-    str = "code --remote ssh-remote+" .. hexHost .. " `\n" .. ps_quote(cwd)
-    str = str .. "; `\n" ..
-        str ..
-        " `\n" .. "-g `\n" .. table.concat(quoted, " `\n")
+    f:write(str)
+    f:close()
+    -- 使用tabnew命令打開新標籤頁顯示檔案
+    vim.cmd("tabnew " .. vim.fn.fnameescape(logFile))
   end
 
-  -- 將指令字串寫入檔案
-  local logFile = vim.fn.expand("~/.NeovimVscode.log")
-  local f, err = io.open(logFile, "w")
-  if not f then
-    vim.notify("rcode: cannot write " .. logFile .. ": " .. tostring(err), vim.log.levels.ERROR)
-    return
+  if M.is_match_exclude_hostname(M.host) == 1 then
+    return show_log("Failed : Not found usefull hostname\n" ..
+      "Use left command to Update hostname from Windows PC sshconfig to current Server :UpdateRegisterHostHameFromLocal\n"
+      ..
+      "P.S. : Check local open reverse ssh port to current remote server")
   end
-  f:write(str)
-  f:close()
 
-  -- 使用tabnew命令打開新標籤頁顯示檔案
-  vim.cmd("tabnew " .. vim.fn.fnameescape(logFile))
+  -- 将主机名转换为 JSON 格式，再转换为十六进制编码
+  local jsonHost = '{"hostName":"' .. M.host .. '"}'
+  local hexHost = M.encodeHostname(jsonHost)
+  local remote = "code --remote ssh-remote+" .. hexHost
+  local quoted = {}
+  for _, target in ipairs(targets) do
+    table.insert(quoted, ps_quote(target))
+  end
+
+  -- copy/paste form (multi-line with PowerShell backtick continuation)
+  local open_dir = remote .. " `\n" .. ps_quote(cwd)
+  local str = open_dir
+  if #quoted > 0 then
+    str = open_dir .. "; `\n" .. open_dir .. " `\n" .. "-g `\n" .. table.concat(quoted, " `\n")
+  end
+
+  if vim.g.rcode_via_tunnel == false then
+    return show_log(str)
+  end
+
+  -- one-line form for `powershell.exe -Command`
+  local ps = remote .. " " .. ps_quote(cwd)
+  if #quoted > 0 then
+    ps = ps .. "; " .. remote .. " " .. ps_quote(cwd) .. " -g " .. table.concat(quoted, " ")
+  end
+  -- cd /mnt/c: powershell.exe refuses a Linux cwd (UNC path warning)
+  local wsl_cmd = "cd /mnt/c 2>/dev/null; powershell.exe -NoProfile -NonInteractive -Command "
+      .. sh_quote(ps) .. " >/dev/null 2>&1; echo RCODE_EXIT=$?"
+
+  local started = M.tunnel_exec(wsl_cmd, function(out)
+    local exit_code = out:match("RCODE_EXIT=(%d+)")
+    if exit_code == "0" then
+      vim.notify("Rcode: 已在 Windows 開啟 VS Code（" .. M.host .. "）")
+    else
+      vim.notify("Rcode: 無法透過 tunnel 執行 PowerShell（"
+        .. (exit_code and ("exit " .. exit_code) or "tunnel 沒有回應")
+        .. "），改為顯示指令，請手動貼到 PowerShell", vim.log.levels.WARN)
+      show_log(str)
+    end
+  end)
+  if started then
+    vim.notify("Rcode: 透過 tunnel 在 Windows 開啟 VS Code 中…")
+  else
+    show_log(str)
+  end
 end
 
 -- 登錄這台 server 對應的 Windows ssh config Host 別名（:UpdateRegisterHostHameFromLocal）
--- 透過 reverse ssh tunnel（~/.rssh_tunnel 的 port，WSL 端是 `ncat -e /bin/sh`）
--- 請 WSL 執行 `vscode-remote-host-sync --lookup <本機 IP...>`，答案沿同一條連線傳回，
+-- 透過 tunnel 請 WSL 執行 `vscode-remote-host-sync --lookup <本機 IP...>`，答案沿同一條連線傳回，
 -- 再寫入本機 ~/.ssh/host_names.d/<IP>。不需要從 Windows ssh 回來，所以跳板機也能用。
-M.tunnel_file = vim.fn.expand("~/.rssh_tunnel")
 M.remote_sync_cmd = '"$HOME/bin/vscode-remote-host-sync"'
 
 function M.register_host_from_local()
@@ -153,28 +229,13 @@ function M.register_host_from_local()
     if choice ~= 1 then return end
   end
 
-  if vim.fn.filereadable(M.tunnel_file) == 0 then
-    return err("找不到 " .. M.tunnel_file .. "，請先在 WSL 執行 reverse-ssh-tunnel-manager")
-  end
-  local port = vim.trim(vim.fn.readfile(M.tunnel_file, "", 1)[1] or "")
-  if not port:match("^%d+$") then
-    return err(M.tunnel_file .. " 沒有 port（tunnel 已關閉？）")
-  end
-  if vim.fn.executable("nc") == 0 then
-    return err("這台 server 沒有 nc")
-  end
   local ips = vr.local_ipv4s()
   if #ips == 0 then
     return err("取不到本機 IP")
   end
 
   local remote_cmd = M.remote_sync_cmd .. " --lookup " .. table.concat(ips, " ") .. " 2>&1"
-  -- keep stdin open until the WSL side answers and closes; the echo loop ends via SIGPIPE once nc exits
-  local script = [[(printf '%s\nexit\n' "$1"; i=0; while [ $i -lt 40 ]; do sleep 0.2; echo; i=$((i+1)); done) | nc -w 10 127.0.0.1 "$2"]]
-  vim.notify("UpdateRegisterHostHameFromLocal: 透過 tunnel 查詢中（" .. table.concat(ips, ", ") .. "）…")
-
-  vim.system({ "sh", "-c", script, "sh", remote_cmd, port }, { text = true, timeout = 15000 }, vim.schedule_wrap(function(res)
-    local out = res.stdout or ""
+  local started, tunnel_err = M.tunnel_exec(remote_cmd, function(out)
     local ip, host
     for line in out:gmatch("[^\r\n]+") do
       local a, b = line:match("^(%d+%.%d+%.%d+%.%d+)%s+([%w._-]+)%s*$")
@@ -204,7 +265,11 @@ function M.register_host_from_local()
     end
     vim.g.host, M.host = host, host
     vim.notify(("UpdateRegisterHostHameFromLocal: 已登錄 %s → %s"):format(ip, host))
-  end))
+  end)
+  if not started then
+    return err(tunnel_err)
+  end
+  vim.notify("UpdateRegisterHostHameFromLocal: 透過 tunnel 查詢中（" .. table.concat(ips, ", ") .. "）…")
 end
 
 return M
