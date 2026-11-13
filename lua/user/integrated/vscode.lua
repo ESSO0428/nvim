@@ -63,7 +63,31 @@ local function collect_targets(file)
   return targets
 end
 
+--- Can `code` on this machine open the files in the user's VS Code?
+---@return boolean ok, string reason
+function M.can_run_code_locally()
+  -- VS Code 整合終端機（含 Remote-SSH）：code 會送回目前視窗
+  -- 需確認 socket 還在，tmux 會保留 VS Code 關掉後已失效的變數
+  local ipc = vim.env.VSCODE_IPC_HOOK_CLI
+  if ipc and ipc ~= "" and (vim.uv or vim.loop).fs_stat(ipc) then
+    return true, "vscode-terminal"
+  end
+  -- WSL，且 code 是 Windows VS Code 的 shim（interop 正常）
+  if vim.fn.has("wsl") == 1 and vim.fn.exepath("code"):find("^/mnt/") then
+    return true, "wsl"
+  end
+  return false, "remote"
+end
+
+-- :Code 自動判斷：能在本機直接跑 code 就跑，否則走 :Rcode（遠端 server → Windows VS Code Remote-SSH）
 function _G.code(file)
+  if M.can_run_code_locally() then
+    return M.code_local(file)
+  end
+  return _G.rcode(file)
+end
+
+function M.code_local(file)
   local targets = collect_targets(file)
 
   local cwd = vim.fn.getcwd()
