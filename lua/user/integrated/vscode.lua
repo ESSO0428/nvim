@@ -162,9 +162,11 @@ function _G.rcode(file)
   M.host = host
 
   local targets = collect_targets(file)
+  -- 結尾一定要有 `/`：VS Code 依副檔名猜測檔案或資料夾（官方文件），
+  -- 沒有 `/` 時像 project.v2 這種資料夾會被當成檔案
   local cwd = vim.fn.getcwd()
-  if cwd:find("/$") then
-    cwd = cwd:sub(1, -2)
+  if not cwd:find("/$") then
+    cwd = cwd .. "/"
   end
 
   local function show_log(str)
@@ -196,22 +198,30 @@ function _G.rcode(file)
     table.insert(quoted, ps_quote(target))
   end
 
-  -- copy/paste form (multi-line with PowerShell backtick continuation)
-  local open_dir = remote .. " `\n" .. ps_quote(cwd)
-  local str = open_dir
-  if #quoted > 0 then
-    str = open_dir .. "; `\n" .. open_dir .. " `\n" .. "-g `\n" .. table.concat(quoted, " `\n")
+  -- 一次呼叫：開啟資料夾並跳到檔案位置
+  -- vim.g.rcode_two_step = true：改回舊的兩段式（先開資料夾，再開檔案），給冷啟動開錯視窗時用
+  local two_step = vim.g.rcode_two_step == true and #quoted > 0
+  local function build(sep, cont)
+    local open_dir = remote .. cont .. ps_quote(cwd)
+    if #quoted == 0 then
+      return open_dir
+    end
+    local goto_files = cont .. "-g" .. cont .. table.concat(quoted, cont)
+    if two_step then
+      return open_dir .. sep .. open_dir .. goto_files
+    end
+    return open_dir .. goto_files
   end
+
+  -- copy/paste form (multi-line with PowerShell backtick continuation)
+  local str = build("; `\n", " `\n")
 
   if vim.g.rcode_via_tunnel == false then
     return show_log(str)
   end
 
   -- one-line form for `powershell.exe -Command`
-  local ps = remote .. " " .. ps_quote(cwd)
-  if #quoted > 0 then
-    ps = ps .. "; " .. remote .. " " .. ps_quote(cwd) .. " -g " .. table.concat(quoted, " ")
-  end
+  local ps = build("; ", " ")
   -- cd /mnt/c: powershell.exe refuses a Linux cwd (UNC path warning)
   local wsl_cmd = "cd /mnt/c 2>/dev/null; powershell.exe -NoProfile -NonInteractive -Command "
       .. sh_quote(ps) .. " >/dev/null 2>&1; echo RCODE_EXIT=$?"
