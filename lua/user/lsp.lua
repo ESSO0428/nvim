@@ -53,6 +53,50 @@ vim.diagnostic.config {
   float = { border = "rounded" },
 }
 
+-- FIX: some servers advertise fileOperations filters with globs that vim.glob rejects
+-- (e.g. `**/*.{}` from an empty extension list), which crashes mini.files / oil /
+-- lsp-file-operations on rename/create/delete. Drop invalid filters; drop the whole
+-- operation if none remain, so an empty filter list isn't treated as "match all".
+local function sanitize_file_operations(client)
+  local ops = vim.tbl_get(client.server_capabilities or {}, "workspace", "fileOperations")
+  if type(ops) ~= "table" then
+    return
+  end
+  for method, reg in pairs(ops) do
+    if type(reg) == "table" and type(reg.filters) == "table" then
+      local valid, dropped = {}, {}
+      for _, filter in ipairs(reg.filters) do
+        local glob = vim.tbl_get(filter, "pattern", "glob")
+        if type(glob) == "string" and pcall(vim.glob.to_lpeg, glob) then
+          table.insert(valid, filter)
+        else
+          table.insert(dropped, tostring(glob))
+        end
+      end
+      if #dropped > 0 then
+        reg.filters = valid
+        if #valid == 0 then
+          ops[method] = nil
+        end
+        -- see :LspLog
+        vim.lsp.log.warn(
+          ("%s: ignored invalid fileOperations.%s glob(s): %s"):format(client.name, method, table.concat(dropped, ", "))
+        )
+      end
+    end
+  end
+end
+
+vim.api.nvim_create_autocmd("LspAttach", {
+  group = vim.api.nvim_create_augroup("user_lsp_sanitize_file_operations", { clear = true }),
+  callback = function(args)
+    local client = vim.lsp.get_client_by_id(args.data.client_id)
+    if client then
+      sanitize_file_operations(client)
+    end
+  end,
+})
+
 -- HACK: Keep the old `_str_utfindex_enc` workaround only for Neovim 0.10.x.
 if vim.fn.has("nvim-0.11") == 0 then
   require("vim.lsp.util")._str_utfindex_enc = function(line, index, encoding)
