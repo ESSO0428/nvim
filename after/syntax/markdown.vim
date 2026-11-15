@@ -1,12 +1,3 @@
-set tabstop=2
-set shiftwidth=2
-set softtabstop=2
-set expandtab
-
-if &buftype ==# 'nofile'
-  setlocal concealcursor=nc
-endif
-
 " highlight @unchecked_list_item guifg=#F8F8F2
 " highlight @checked_list_item guifg=#375749 gui=strikethrough
 

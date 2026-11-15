@@ -130,20 +130,6 @@ function ReStartNotTableFileTypeLayout(action)
   end
 end
 
-function SetupMarkdownBufferSyntaxConceal()
-  -- 檢查文件類型是否為 markdown
-  if vim.bo.filetype == "markdown" then
-    -- 設置語法高亮
-    vim.cmd("setlocal syntax=on")
-
-    -- 檢查緩衝區類型是否為 nofile
-    if vim.bo.buftype == "nofile" then
-      -- 設置 concealcursor
-      vim.cmd("setlocal concealcursor=nv")
-    end
-  end
-end
-
 Nvim.keys.normal_mode["sn"] = toggle_syntax
 Nvim.keys.normal_mode["sc"] = toggle_conceal
 vim.cmd([[
